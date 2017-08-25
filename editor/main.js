@@ -158,6 +158,24 @@ function updateViewBox() {
 	`);
 }
 
+let inspector = document.querySelector('.inspector .content');
+let layers = document.querySelector('.layers .content');
+
+function updateInspector() {
+
+}
+
+function updateLayers() {
+	if(!selected) return;
+	// clear layers
+	[].slice.call(layers.children).forEach(function(child) { layers.removeChild(child) });
+	// add layers
+	[].slice.call(selected.element.parentElement.children).forEach(function(element) {
+		let selected = element.classList.contains('selected') ? '.selected' : '';
+		layers.appendChild( h(`.layer${selected}`, h('i',`(${element.tagName})`)) )
+	});
+}
+
 setTimeout(updateViewBox, 0);
 
 
@@ -371,6 +389,8 @@ class Entity {
 		this.showHandles();
 		this.element.classList.add('selected');
 		selected = this;
+
+		updateLayers();
 	}
 
 	deselect() {
@@ -537,7 +557,7 @@ class Character extends Entity {
 			this.anatomy.head.element = svg('g.headgroup', [
 				svg('defs', [
 					svg('clipPath #headClip', [
-						svg('circle', { r: this.anatomy.head.radius - 1.8 })
+						svg('circle', { r: this.anatomy.head.radius - 2 })
 					])
 				]),
 
@@ -575,18 +595,34 @@ hotkeys('ctrl+q, ctrl+w, ctrl+e', function(event, handler) {
 	}
 });
 
+hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
+	if(selected === null) return;
+	var el = selected.element;
+	var p = el.parentElement;
+	switch(handler.key) {
+		case 'ctrl+a': p.insertBefore(el, p.children[0]); break;
+		case 'ctrl+s': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
+		case 'ctrl+d': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
+		case 'ctrl+f': p.appendChild(el); break;
+	}
+	updateLayers();
+});
+
 hotkeys('ctrl+shift+x', function(event, handler) {
 	if(selected != null) {
 		selected.destroy();
 		selected = null;
 	}
+	updateLayers();
 });
 
 paper.addEventListener('mousedown', function(e) {
 	if(e.target === paper && selected != null) {
 		selected.deselect();
 		selected = null;
+
+		updateLayers();
 	}
 });
 
-new Character();
+// new Character();

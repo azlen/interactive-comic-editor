@@ -6,6 +6,10 @@
 		html, body {
 			width: 100%;
 			height: 100%;
+			padding: 0;
+			margin: 0;
+
+			overflow: hidden;
 		}
 
 		.paper {
@@ -15,8 +19,11 @@
 
 		.panel {
 			fill: #FFFFFF;
-			stroke: #0099FF;
+			stroke: #333333;
 			stroke-width: 2px;
+		}
+		.panel.selected {
+			stroke: #0099FF;
 		}
 
 		.handle circle {
@@ -28,6 +35,10 @@
 		}
 		.rotationhandle circle {
 			transform: scale(0.8);
+		}
+		.handle.move circle {
+			cursor: move;
+			transform: scale(1.2);
 		}
 
 		.handle line {
@@ -41,6 +52,20 @@
 
 		.hidden {
 			display: none;
+		}
+
+		.character .headgroup .head  {
+			fill: #CFB871;
+			stroke: #333333;
+			stroke-width: 4px;
+		}
+
+		.character .headgroup .light {
+			fill: #FFE492;
+		}
+
+		.character .headgroup .eyes ellipse {
+			fill: #333333;
 		}
 
 	</style>

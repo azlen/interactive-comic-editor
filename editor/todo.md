@@ -14,7 +14,7 @@
     - updateHandles could be a part of every callback?
     - updateHandles calls the update function for every handle?
 
-[ ] Create rotation handle, this handle could have its own handle for rotation that appears when the mouse is close in distance (2x où 3x the radius)
+[X] Create rotation handle, this handle could have its own handle for rotation that appears when the mouse is close in distance (2x où 3x the radius)
 [ ] Mask entities in panel
 [X] Select only 1 entity at once, hide handles
 [X] Delete selected entity
@@ -22,15 +22,19 @@
 [ ] Move multiple selected entities
 [ ] Delete multiple selected entities
 
+[ ] Put panels on different layer
+
 [X] Make it so that handles can be relative to relative handles!
 
 [X] Create Panel Entity
 [ ] Create Caption Entity
 [ ] Create SpeechBubble Entity
-[ ] Create Person/Reader Entity
+[X] Create Person/Reader Entity
     [ ] Torso
-    [ ] Head
-    [ ] Eyes
+    [X] Head
+        [X] Shadow
+    [X] Eyes
+        [ ] Fix masking for eyes
     [ ] Limbs
 
 [X] Create keyboard shortcuts to create each entity rather than spending time developing user interface
@@ -41,6 +45,6 @@
 
 [ ] Saving / Loading
 
-[ ] Zoom in/out
-[ ] Pan w/ cmd+drag?
+[X] Zoom in/out
+[X] Pan w/ cmd+drag?
 

@@ -58,8 +58,8 @@
 		target = e.target;
 		callbacks = fns;
 
-		x = e.clientX;
-		y = e.clientY;
+		x = e.clientX * viewBox.scale;
+		y = e.clientY * viewBox.scale;
 		down = true;
 
 		if(callbacks.hasOwnProperty('mousedown')) {
@@ -68,20 +68,20 @@
 	}
 
 	function _mousemove(e) {
+		mouse.x = e.clientX * viewBox.scale;
+		mouse.y = e.clientY * viewBox.scale;
+
 		if(down) {
-			dx = e.clientX - x;
-			dy = e.clientY - y;
+			dx = mouse.x - x;
+			dy = mouse.y - y;
 
 			if(callbacks.hasOwnProperty('mousemove')) {
 				callbacks.mousemove(dx, dy);
 			}
 
-			x = e.clientX;
-			y = e.clientY;
-		}	
-
-		mouse.x = e.clientX;
-		mouse.y = e.clientY;
+			x = mouse.x;
+			y = mouse.y;
+		}
 	}
 
 	function _mouseup(e) {
@@ -123,6 +123,44 @@ let paper = svg('svg.paper', [
 	handles = svg('g.handles'),
 ]);
 
+document.body.appendChild(paper);
+
+var viewBox = {
+	x: 0, y: 0,
+	scale: 1,
+}
+
+/*draggable(paper, {
+	mousemove: function(dx, dy) {
+		console.log(dx, dy);
+	}
+});*/
+
+paper.addEventListener('mousewheel', function(e) {
+	e.preventDefault();
+	e.stopPropagation();
+	if(e.ctrlKey) {
+		viewBox.scale += e.deltaY * viewBox.scale / 100;
+		viewBox.scale = Math.min(Math.max(viewBox.scale, 0.1), 1)
+	}else{
+		viewBox.x += e.deltaX * viewBox.scale;
+		viewBox.y += e.deltaY * viewBox.scale;
+	}
+	updateViewBox();	
+});
+
+function updateViewBox() {
+	paper.setAttribute('viewBox', `
+		${viewBox.x/* - paper.width.baseVal.value * viewBox.scale / 2*/},
+		${viewBox.y/* - paper.height.baseVal.value * viewBox.scale / 2*/},
+		${paper.width.baseVal.value * viewBox.scale},
+		${paper.height.baseVal.value * viewBox.scale}
+	`);
+}
+
+setTimeout(updateViewBox, 0);
+
+
 let constraints = {
 	snapToGrid: function(gridSize, pos) {
 		pos.x = Math.round(pos.x / gridSize) * gridSize;
@@ -144,8 +182,6 @@ let constraints = {
 		return pos;
 	}
 }
-
-document.body.appendChild(paper);
 
 class Handle {
 	constructor(x, y) {
@@ -191,11 +227,11 @@ class Handle {
 		this.element.setAttribute('transform', transform);
 	}
 
-	move(dx, dy, activateCallbacks) {
-		this.setPosition(this._x + dx, this._y + dy, activateCallbacks);
+	move(dx, dy, doActivateCallbacks) {
+		this.setPosition(this._x + dx, this._y + dy, doActivateCallbacks);
 	}
 
-	setPosition(x, y, activateCallbacks) {
+	setPosition(x, y, doActivateCallbacks) {
 		this._x = x;
 		this._y = y;
 
@@ -209,22 +245,28 @@ class Handle {
 		this.x = newPos.x;
 		this.y = newPos.y;
 
-		if(activateCallbacks) {
-			this.callbacks.forEach(function(callback) {
-				callback(this);
-			}.bind(this));
+		if(doActivateCallbacks) {
+			this.activateCallbacks();
 		}
 		//}
 
 		this.applyTransformations();
 	}
 
+	activateCallbacks() {
+		this.callbacks.forEach(function(callback) {
+			callback(this);
+		}.bind(this));
+	}
+
 	show() {
 		this.element.classList.remove('hidden');
+		if(this.handle) this.handle.show();
 	}
 
 	hide() {
 		this.element.classList.add('hidden');
+		if(this.handle) this.handle.hide();
 	}
 
 	_initRotationalHandle(rotation) {
@@ -268,6 +310,7 @@ class Handle {
 
 	destroy() {
 		this.element.parentElement.removeChild(this.element);
+		if(this.handle) this.handle.destroy();
 	}
 }
 
@@ -283,6 +326,10 @@ class Entity {
 
 	constructor() {
 		this.handles = [];
+
+		this.options = {
+			class: '',
+		};
 
 		this._render();
 		this._initPos();
@@ -320,14 +367,21 @@ class Entity {
 
 	select(e) {
 		if(e) e.stopPropagation();
-		if(selected != null) selected.hideHandles();
+		if(selected != null) selected.deselect();
 		this.showHandles();
+		this.element.classList.add('selected');
 		selected = this;
+	}
+
+	deselect() {
+		this.hideHandles();
+		this.element.classList.remove('selected');
 	}
 
 	_initPos() {
 		this.pos = this.addHandle(new Handle(mouse.x, mouse.y));
 		this.pos.applyCallback(this._updatePos.bind(this));
+		this.pos.element.classList.add('move');
 	}
 
 	_updatePos() {
@@ -419,28 +473,53 @@ class Character extends Entity {
 		super();
 
 		this._initHeadHandles();
+		this._initBodyHandles();
+
+		this._applyTransformations();
 	}
 
 	_initAnatomy() {
 		this.anatomy = {
-			head: {handles:{}},
-			body: {},
+			head: {
+				radius: 25,
+				eyes: {}
+			},
+			body: {handles:{}},
 		};
 	}
 
 	_initHeadHandles() {
 		let head = this.anatomy.head;
-		head.handles.pos = this.addHandle(new RotationHandle(0, -30));
-		head.handles.pos.parent(this.pos);
-		head.handles.pos.applyCallback(this._updateHeadPos.bind(this));
+		head.pos = this.addHandle(new Handle(30, 0));
+		head.pos.parent(this.pos);
+		head.pos.applyCallback(this._updateHeadPos.bind(this));
+
+		head.eyes.pos = this.addHandle(new RotationHandle(60, 25));
+		head.eyes.pos.parent(head.pos);
+		head.eyes.pos.applyCallback(this._updateEyePos.bind(this));
+		head.eyes.pos.handle.applyCallback(this._updateEyePos.bind(this));
 
 		this._updateHeadPos();
+		this._updateEyePos();
 	}
 	
 	_updateHeadPos() {
 		let head = this.anatomy.head;
-		head.element.setAttribute('cx', head.handles.pos.x + head.element.r.baseVal.value);
-		head.element.setAttribute('cy', head.handles.pos.y + head.element.r.baseVal.value);
+		let x = head.pos.x + head.radius;
+		let y = head.pos.y + head.radius;
+		head.element.setAttribute('transform', `translate(${x}, ${y})`);
+	}
+
+	_updateEyePos() {
+		let head = this.anatomy.head;
+		let x = head.eyes.pos.x - head.radius - 30;
+		let y = head.eyes.pos.y - head.radius;
+		let rotation = radToDeg(head.eyes.pos.rotation);
+		head.eyes.element.setAttribute('transform', `translate(${x}, ${y}) rotate(${rotation})`);
+	}
+
+	_initBodyHandles() {
+
 	}
 
 	_updatePos() {
@@ -448,18 +527,40 @@ class Character extends Entity {
 	}
 
 	_applyTransformations() {
-		this.element.setAttribute('transform', `
-			translate(${this.pos.x}, ${this.pos.y})
-		`)
+		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
 	}
 
 	_render() {
 		this._initAnatomy();
 
 		this.element = svg('g.character', [
-			this.anatomy.head.element = svg('circle.head', {
-				cx: 0, cy: 0, r: 25, fill: '#FF9900'
-			})
+			this.anatomy.head.element = svg('g.headgroup', [
+				svg('defs', [
+					svg('clipPath #headClip', [
+						svg('circle', { r: this.anatomy.head.radius - 1.8 })
+					])
+				]),
+
+				svg('circle.head', {
+					r: 25,
+				}),
+				svg('circle.light', {
+					cx: 5, cy: -5, r: this.anatomy.head.radius,
+					'clip-path': 'url(#headClip)'
+				}),
+
+				this.anatomy.head.eyes.element = svg('g.eyes', {
+					'clip-path': 'url(#headClip)'
+				}, [
+					svg('ellipse', {
+						cx: -7, rx: 3, ry: 9,
+					}),
+					svg('ellipse', {
+						cx: 7, rx: 3, ry: 9,
+					})
+				])
+			])
+			
 		]);
 
 		render.appendChild(this.element);
@@ -470,7 +571,7 @@ hotkeys('ctrl+q, ctrl+w, ctrl+e', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+q': new Panel(); break;
 		case 'ctrl+w': new Rect(); break;
-		case 'ctrl+w': new Character(); break;
+		case 'ctrl+e': new Character(); break;
 	}
 });
 
@@ -483,7 +584,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 
 paper.addEventListener('mousedown', function(e) {
 	if(e.target === paper && selected != null) {
-		selected.hideHandles();
+		selected.deselect();
 		selected = null;
 	}
 });

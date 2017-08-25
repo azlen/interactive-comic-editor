@@ -13,18 +13,34 @@
 			height: 100%;
 		}
 
-		.handle {
+		.panel {
+			fill: #FFFFFF;
+			stroke: #0099FF;
+			stroke-width: 2px;
+		}
+
+		.handle circle {
 			fill: #FFFFFF;
 			stroke: #333333;
 			stroke-width: 4px;
 			cursor: pointer;
 			z-index: 1000;
 		}
+		.rotationhandle circle {
+			transform: scale(0.8);
+		}
 
-		.panel {
-			fill: #FFFFFF;
-			stroke: #0099FF;
+		.handle line {
+			stroke: #333333;
 			stroke-width: 2px;
+		}
+
+		.handle:not(.rotation) line {
+			display: none;
+		}
+
+		.hidden {
+			display: none;
 		}
 
 	</style>

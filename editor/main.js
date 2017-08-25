@@ -49,7 +49,6 @@
 })(); // h, svg
 
 (function() {
-
 	let target, callbacks;
 	let down, x, y, dx, dy;
 
@@ -111,9 +110,13 @@
 	window.distance = function(p1, p2) {
 		return Math.sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y));
 	}
-})(); // direction, distance
 
-let handles, render;
+	window.radToDeg = function(rad) {
+		return rad * 180 / Math.PI;
+	}
+})(); // direction, distance, radToDeg
+
+let handles, render, selected = null;
 
 let paper = svg('svg.paper', [
 	render = svg('g.render'),
@@ -134,6 +137,12 @@ let constraints = {
 	positive: function(pos) {
 		return constraints.minimum(0, 0, pos);
 	},
+	distance: function(dist, pos) {
+		let dir = direction({x: 0, y: 0}, pos);
+		pos.x = Math.cos(dir) * dist;
+		pos.y = Math.sin(dir) * dist;
+		return pos;
+	}
 }
 
 document.body.appendChild(paper);
@@ -155,11 +164,14 @@ class Handle {
 	}
 
 	parent(handle) {
-		this.origin = handle;
+		this.origin = {
+			get x() { return handle.x + handle.origin.x; },
+			get y() { return handle.y + handle.origin.y; }
+		};
 		handle.applyCallback(function() {
-			this.move(0, 0);
+			this.move(0, 0, true);
 		}.bind(this));
-		this.move(0, 0);
+		this.move(0, 0, true);
 	}
 
 	applyCallback() {
@@ -168,6 +180,15 @@ class Handle {
 
 	applyConstraint() {
 		this.constraints = this.constraints.concat([].slice.call(arguments));
+		this.move(0, 0);
+	}
+
+	applyTransformations() {
+		let transform = `
+			translate(${this.origin.x + this.x}, ${this.origin.y + this.y}) 
+			rotate(${radToDeg(this.rotation || 0)})
+		`;
+		this.element.setAttribute('transform', transform);
 	}
 
 	move(dx, dy, activateCallbacks) {
@@ -182,27 +203,56 @@ class Handle {
 		this.constraints.forEach(function(fn) {
 			newPos = fn(newPos);
 		});
-		console.log(newPos);
 
-		if(this.x != newPos.x || this.y != newPos.y) {
-			this.x = newPos.x;
-			this.y = newPos.y;
+		// this will waste some processing I guess but it fixes things!
+		//if(this.x != newPos.x || this.y != newPos.y) {
+		this.x = newPos.x;
+		this.y = newPos.y;
 
-			if(activateCallbacks) {
-				this.callbacks.forEach(function(callback) {
-					callback(this);
-				}.bind(this));
-			}
+		if(activateCallbacks) {
+			this.callbacks.forEach(function(callback) {
+				callback(this);
+			}.bind(this));
 		}
+		//}
 
-		this.element.setAttribute('cx', this.origin.x + this.x);
-		this.element.setAttribute('cy', this.origin.y + this.y);
+		this.applyTransformations();
+	}
+
+	show() {
+		this.element.classList.remove('hidden');
+	}
+
+	hide() {
+		this.element.classList.add('hidden');
+	}
+
+	_initRotationalHandle(rotation) {
+		this.rotation = rotation || 0;
+		this.element.classList.add('rotation');
+
+		this.handle = new Handle(20, 0);
+		this.handle.parent(this);
+		this.handle.applyConstraint(constraints.distance.bind(null, 20));
+		this.handle.applyCallback(this._updateRotation.bind(this));
+		this.handle.element.classList.add('rotationhandle');
+	}
+
+	_updateRotation() {
+		this.rotation = direction({x: 0, y: 0}, this.handle);
+		this.applyTransformations();
 	}
 
 	_render() {
-		this.element = svg('circle.handle', {
-			cx: this.x, cy: this.y, r: 7,
-		});
+		this.element = svg('g.handle', [
+			svg('circle', {
+				cx: 0, cy: 0, r: 7,
+			}),
+			svg('line', {
+				x1: 0, y1: 0, x2: 7, y2: 0,
+			})
+		]);
+		this.move(0, 0);
 
 		draggable(this.element, {
 			mousemove: function(dx, dy) {
@@ -215,18 +265,68 @@ class Handle {
 
 		handles.appendChild(this.element);
 	}
+
+	destroy() {
+		this.element.parentElement.removeChild(this.element);
+	}
+}
+
+class RotationHandle extends Handle {
+	constructor(x, y, rotation) {
+		super(x, y);
+
+		this._initRotationalHandle();
+	}
 }
 
 class Entity {
 
 	constructor() {
-		this._render();
+		this.handles = [];
 
+		this._render();
 		this._initPos();
+
+		this._makeSelectable();
+		this.select();
+	}
+
+	addHandle(handle) {
+		this.handles.push(handle);
+		return handle;
+	}
+
+	hideHandles() {
+		this.handles.forEach(function(handle) {
+			handle.hide();
+		});
+	}
+
+	showHandles() {
+		this.handles.forEach(function(handle) {
+			handle.show();
+		});
+	}
+
+	destroyHandles() {
+		this.handles.forEach(function(handle) {
+			handle.destroy();
+		});
+	}
+
+	_makeSelectable() {
+		this.element.addEventListener('click', this.select.bind(this), true);
+	}
+
+	select(e) {
+		if(e) e.stopPropagation();
+		if(selected != null) selected.hideHandles();
+		this.showHandles();
+		selected = this;
 	}
 
 	_initPos() {
-		this.pos = new Handle(mouse.x, mouse.y);
+		this.pos = this.addHandle(new Handle(mouse.x, mouse.y));
 		this.pos.applyCallback(this._updatePos.bind(this));
 	}
 
@@ -237,6 +337,11 @@ class Entity {
 	
 	_render() {
 		// Override
+	}
+
+	destroy() {
+		this.element.parentElement.removeChild(this.element);
+		this.destroyHandles();
 	}
 }
 
@@ -253,7 +358,7 @@ class Rect extends Entity {
 	}
 
 	_initScale() {
-		this.scale = new Handle(100, 30);
+		this.scale = this.addHandle(new Handle(100, 30));
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this), this._updatePos.bind(this));
 		this.scale.applyConstraint(constraints.positive);
@@ -290,7 +395,7 @@ class Panel extends Entity {
 	}
 
 	_initScale() {
-		this.scale = new Handle(100, 100);
+		this.scale = this.addHandle(new Handle(100, 100));
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
 		this.scale.applyConstraint(constraints.minimum.bind(null, 50, 50));
@@ -309,11 +414,78 @@ class Panel extends Entity {
 	}
 }
 
-hotkeys('ctrl+q,ctrl+w', function(event, handler) {
+class Character extends Entity {
+	constructor() {
+		super();
+
+		this._initHeadHandles();
+	}
+
+	_initAnatomy() {
+		this.anatomy = {
+			head: {handles:{}},
+			body: {},
+		};
+	}
+
+	_initHeadHandles() {
+		let head = this.anatomy.head;
+		head.handles.pos = this.addHandle(new RotationHandle(0, -30));
+		head.handles.pos.parent(this.pos);
+		head.handles.pos.applyCallback(this._updateHeadPos.bind(this));
+
+		this._updateHeadPos();
+	}
+	
+	_updateHeadPos() {
+		let head = this.anatomy.head;
+		head.element.setAttribute('cx', head.handles.pos.x + head.element.r.baseVal.value);
+		head.element.setAttribute('cy', head.handles.pos.y + head.element.r.baseVal.value);
+	}
+
+	_updatePos() {
+		this._applyTransformations();
+	}
+
+	_applyTransformations() {
+		this.element.setAttribute('transform', `
+			translate(${this.pos.x}, ${this.pos.y})
+		`)
+	}
+
+	_render() {
+		this._initAnatomy();
+
+		this.element = svg('g.character', [
+			this.anatomy.head.element = svg('circle.head', {
+				cx: 0, cy: 0, r: 25, fill: '#FF9900'
+			})
+		]);
+
+		render.appendChild(this.element);
+	}
+}
+
+hotkeys('ctrl+q, ctrl+w, ctrl+e', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+q': new Panel(); break;
 		case 'ctrl+w': new Rect(); break;
+		case 'ctrl+w': new Character(); break;
 	}
 });
 
-new Panel();
+hotkeys('ctrl+shift+x', function(event, handler) {
+	if(selected != null) {
+		selected.destroy();
+		selected = null;
+	}
+});
+
+paper.addEventListener('mousedown', function(e) {
+	if(e.target === paper && selected != null) {
+		selected.hideHandles();
+		selected = null;
+	}
+});
+
+new Character();

@@ -15,8 +15,16 @@
     - updateHandles calls the update function for every handle?
 
 [ ] Create rotation handle, this handle could have its own handle for rotation that appears when the mouse is close in distance (2x où 3x the radius)
+[ ] Mask entities in panel
+[X] Select only 1 entity at once, hide handles
+[X] Delete selected entity
+[ ] Select multiple entities
+[ ] Move multiple selected entities
+[ ] Delete multiple selected entities
 
-[ ] Create Panel Entity with mask that can hold other entities
+[X] Make it so that handles can be relative to relative handles!
+
+[X] Create Panel Entity
 [ ] Create Caption Entity
 [ ] Create SpeechBubble Entity
 [ ] Create Person/Reader Entity
@@ -25,11 +33,13 @@
     [ ] Eyes
     [ ] Limbs
 
-[ ] Create keyboard shortcuts to create each entity rather than spending time developing user interface
+[X] Create keyboard shortcuts to create each entity rather than spending time developing user interface
 
 [ ] Create inspector, certain entities may have textual/select options better fit for an inspector (although textual options could be through contenteditable, I thnk it would be better just to put it in the inspector)
 
 [ ] Create UI showing layers in current panel? possibly using keyboard shortcuts instead of UI actions to move and select different objects. ~~Shows layers in panel which contains mouse.~~ Shows layers in panel with currently selected object
+
+[ ] Saving / Loading
 
 [ ] Zoom in/out
 [ ] Pan w/ cmd+drag?

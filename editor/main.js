@@ -161,12 +161,22 @@ function updateViewBox() {
 let inspector = document.querySelector('.inspector .content');
 let layers = document.querySelector('.layers .content');
 
-function updateInspector() {
+window.addEventListener('resize', updateViewBox);
 
+function updateInspector() {
+	if(selected === null) return;
+	// clear inspector
+	[].slice.call(inspector.children).forEach(function(child) { inspector.removeChild(child) });
+	// add items to inspector
+	for(item in selected.options) {
+		var el = h('.item', `${item}: `, selected.options[item].element);
+		
+		inspector.appendChild(el);
+	}
 }
 
 function updateLayers() {
-	if(!selected) return;
+	if(selected === null) return;
 	// clear layers
 	[].slice.call(layers.children).forEach(function(child) { layers.removeChild(child) });
 	// add layers
@@ -174,6 +184,82 @@ function updateLayers() {
 		let selected = element.classList.contains('selected') ? '.selected' : '';
 		layers.appendChild( h(`.layer${selected}`, h('i',`(${element.tagName})`)) )
 	});
+}
+
+function updateUI() {
+	updateLayers();
+	updateInspector();
+}
+
+var UI = {};
+
+UI._Element = class {
+	constructor() {
+		this._render();
+
+		this.callbacks = [];
+		this._value;
+
+		this._updateValue();
+	}
+
+	applyCallback() {
+		this.callbacks = this.callbacks.concat([].slice.call(arguments));
+	}
+
+	activateCallbacks(newValue) {
+		this.callbacks.forEach(function(callback) {
+			callback(newValue);
+		});
+	}
+
+	get value() {
+		return this._value;
+	}
+ 
+	set value(newValue) {
+		if(this._value != newValue) {
+			this.activateCallbacks(newValue);
+		}
+		return this._value = newValue;
+	}
+
+	_render() {
+		// Override
+	}
+}
+
+UI.Input = class extends UI._Element {
+	_updateValue() {
+		this.value = this.element.value;
+	}
+
+	_render() {
+		this.element = h('input');	
+		this.element.addEventListener('keyup', this._updateValue.bind(this));
+	}
+}
+
+UI.Textarea = class extends UI._Element {
+	_updateValue() {
+		this.value = this.element.value;
+	}
+
+	_render() {
+		this.element = h('textarea');
+		this.element.addEventListener('keyup', this._updateValue.bind(this));
+	}
+}
+
+UI.Bool = class extends UI._Element {
+	_updateValue() {
+		this.value = this.element.value;
+	}
+
+	_render() {
+		this.element = h('input', { type: 'checkbox' });
+		this.element.addEventListener('click', this._updateValue.bind(this));
+	}
 }
 
 setTimeout(updateViewBox, 0);
@@ -346,7 +432,7 @@ class Entity {
 		this.handles = [];
 
 		this.options = {
-			class: '',
+			class: new UI.Input()
 		};
 
 		this._render();
@@ -390,7 +476,7 @@ class Entity {
 		this.element.classList.add('selected');
 		selected = this;
 
-		updateLayers();
+		updateUI();
 	}
 
 	deselect() {
@@ -605,7 +691,7 @@ hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
 		case 'ctrl+d': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
 		case 'ctrl+f': p.appendChild(el); break;
 	}
-	updateLayers();
+	updateUI();
 });
 
 hotkeys('ctrl+shift+x', function(event, handler) {
@@ -613,7 +699,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 		selected.destroy();
 		selected = null;
 	}
-	updateLayers();
+	updateUI();
 });
 
 paper.addEventListener('mousedown', function(e) {

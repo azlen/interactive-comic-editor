@@ -37,11 +37,16 @@
         [ ] Fix masking for eyes
     [ ] Limbs
 
+[ ] create border around page size
+    - HOW WILL RESCALE MOBILEELELE?
+
+[ ] create multiple pages, switch between
+    
 [X] Create keyboard shortcuts to create each entity rather than spending time developing user interface
 
 [ ] Create inspector, certain entities may have textual/select options better fit for an inspector (although textual options could be through contenteditable, I thnk it would be better just to put it in the inspector)
 
-[ ] Create UI showing layers in current panel? possibly using keyboard shortcuts instead of UI actions to move and select different objects. ~~Shows layers in panel which contains mouse.~~ Shows layers in panel with currently selected object
+[X] Create UI showing layers in current panel? possibly using keyboard shortcuts instead of UI actions to move and select different objects. ~~Shows layers in panel which contains mouse.~~ Shows layers in panel with currently selected object
 
 [ ] Saving / Loading
 

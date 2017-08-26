@@ -103,12 +103,27 @@
 })(); // draggable, mouse
 
 (function() {
+	function _globalPosition(point) {
+		return {
+			x: point.x + (!!point.origin ? point.origin.x : 0),
+			y: point.y + (!!point.origin ? point.origin.y : 0)
+		}
+	}
+
 	window.direction = function(p1, p2) {
-		return Math.atan2(p2.y - p1.y, p2.x - p1.x);
+		// let p1_G = _globalPosition(p1);
+		// let p2_G = _globalPosition(p2);
+		let p1_G = p1;
+		let p2_G = p2;
+		return Math.atan2(p2_G.y - p1_G.y, p2_G.x - p1_G.x);
 	}
 
 	window.distance = function(p1, p2) {
-		return Math.sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y));
+		// let p1_G = _globalPosition(p1);
+		// let p2_G = _globalPosition(p2);
+		let p1_G = p1;
+		let p2_G = p2;
+		return Math.sqrt((p1_G.x-p2_G.x)*(p1_G.x-p2_G.x) + (p1_G.y-p2_G.y)*(p1_G.y-p2_G.y));
 	}
 
 	window.radToDeg = function(rad) {
@@ -129,12 +144,6 @@ var viewBox = {
 	x: 0, y: 0,
 	scale: 1,
 }
-
-/*draggable(paper, {
-	mousemove: function(dx, dy) {
-		console.log(dx, dy);
-	}
-});*/
 
 paper.addEventListener('mousewheel', function(e) {
 	e.preventDefault();
@@ -164,9 +173,10 @@ let layers = document.querySelector('.layers .content');
 window.addEventListener('resize', updateViewBox);
 
 function updateInspector() {
-	if(selected === null) return;
 	// clear inspector
 	[].slice.call(inspector.children).forEach(function(child) { inspector.removeChild(child) });
+	// don't add if nothing selected
+	if(selected === null) return;
 	// add items to inspector
 	for(item in selected.options) {
 		var el = h('.item', `${item}: `, selected.options[item].element);
@@ -176,9 +186,10 @@ function updateInspector() {
 }
 
 function updateLayers() {
-	if(selected === null) return;
 	// clear layers
 	[].slice.call(layers.children).forEach(function(child) { layers.removeChild(child) });
+	// don't add if nothing selected
+	if(selected === null) return;
 	// add layers
 	[].slice.call(selected.element.parentElement.children).forEach(function(element) {
 		let selected = element.classList.contains('selected') ? '.selected' : '';
@@ -259,6 +270,18 @@ UI.Bool = class extends UI._Element {
 	_render() {
 		this.element = h('input', { type: 'checkbox' });
 		this.element.addEventListener('click', this._updateValue.bind(this));
+	}
+}
+
+UI.Number = class extends UI._Element {
+	_updateValue() {
+		this.value = this.element.value;
+	}
+
+	_render() {
+		this.element = h('input', { type: 'number' });
+		this.element.addEventListener('change', this._updateValue.bind(this));
+		this.element.addEventListener('keyup', this._updateValue.bind(this));
 	}
 }
 
@@ -590,7 +613,15 @@ class Character extends Entity {
 				radius: 25,
 				eyes: {}
 			},
-			body: {handles:{}},
+			body: {
+				path: {},
+			},
+			limbs: {
+				left_arm: {},
+				right_arm: {},
+				left_leg: {},
+				right_leg: {}
+			}
 		};
 	}
 
@@ -625,7 +656,112 @@ class Character extends Entity {
 	}
 
 	_initBodyHandles() {
+		let body = this.anatomy.body;
+		body.pos = this.addHandle(new RotationHandle(55, 65));
+		body.pos.parent(this.pos);
+		body.pos.applyCallback(this._updateBodyPos.bind(this));
+		body.pos.handle.applyCallback(this._updateBodyPath.bind(this));
 
+		body.control1 = this.addHandle(new RotationHandle(0, 100));
+		body.control1.parent(body.pos);
+		body.control1.applyCallback(this._updateBodyPath.bind(this));
+		body.control1.handle.applyCallback(this._updateBodyPath.bind(this));
+
+		body.control2 = this.addHandle(new Handle(30, 50));
+		body.control2.parent(body.pos);
+		body.control2.applyCallback(this._updateBodyPath.bind(this));
+
+		this._initLimbHandles();
+
+		this._updateBodyPos();
+		this._updateBodyPath();
+	}
+
+	_updateBodyPos() {
+		let body = this.anatomy.body;
+		let x = body.pos.x;
+		let y = body.pos.y;
+		body.element.setAttribute('transform', `translate(${x}, ${y})`);
+	}
+
+	_updateBodyPath() {
+		let body = this.anatomy.body;
+		let top_length = 50, bot_length = 25;
+		let p1 = {
+			x: Math.cos(body.pos.rotation) * top_length / 2,
+			y: Math.sin(body.pos.rotation) * top_length / 2
+		}
+		let p2 = {
+			x: body.control1.x + Math.cos(body.control1.rotation) * bot_length / 2,
+			y: body.control1.y + Math.sin(body.control1.rotation) * bot_length / 2
+		}
+		let p3 = {
+			x: body.control1.x - Math.cos(body.control1.rotation) * bot_length / 2,
+			y: body.control1.y - Math.sin(body.control1.rotation) * bot_length / 2
+		}
+		let p4 = {
+			x: -p1.x,
+			y: -p1.y
+		}
+		let controlA = {
+			x: body.control2.x + Math.cos((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			y: body.control2.y + Math.sin((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+		}
+		let controlB = {
+			x: body.control2.x - Math.cos((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			y: body.control2.y - Math.sin((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+		}
+
+		this.anatomy.limbs.left_arm.pos = p4;
+		this.anatomy.limbs.right_arm.pos = p1;
+		this.anatomy.limbs.left_leg.pos = p3;
+		this.anatomy.limbs.right_leg.pos = p2;
+
+		this._updateLimbs();
+
+		body.path.element.setAttribute('d', `
+			M ${p1.x} ${p1.y}
+			Q ${controlA.x} ${controlA.y} ${p2.x} ${p2.y}
+			L ${p3.x} ${p3.y}
+			Q ${controlB.x} ${controlB.y} ${-p1.x} ${-p1.y}
+			Z
+		`);
+	}
+
+	_initLimbHandles() {
+		let limbs = this.anatomy.limbs;
+		let iHP = { // initialHandlePositions
+			'left_arm': [{x: -50, y: 70}, {x: -50, y: 30}],
+			'right_arm': [{x: 30, y: 70}, {x: 30, y: 30}],
+			'left_leg': [{x: -30, y: 170}, {x: -30, y: 130}],
+			'right_leg': [{x: 30, y: 170}, {x: 30, y: 130}],
+		};
+		for(let limb in iHP) {
+			console.log(limb, limbs[limb]);
+			limbs[limb].control1 = this.addHandle(new Handle(iHP[limb][0].x, iHP[limb][0].y));
+			limbs[limb].control1.parent(this.anatomy.body.pos);
+			limbs[limb].control1.applyCallback(this._updateLimb.bind(this, limbs[limb]));
+
+			limbs[limb].control2 = this.addHandle(new Handle(iHP[limb][1].x, iHP[limb][1].y));
+			limbs[limb].control2.parent(this.anatomy.body.pos);
+			limbs[limb].control2.applyCallback(this._updateLimb.bind(this, limbs[limb]));
+
+			// this._updateLimb(limbs[limb]);
+		}
+	}
+
+	_updateLimb(limb) {
+		limb.element.setAttribute('d', `
+			M ${limb.pos.x} ${limb.pos.y},
+			Q ${limb.control2.x} ${limb.control2.y} ${limb.control1.x} ${limb.control1.y}
+		`);
+	}
+
+	_updateLimbs() {
+		for(let limb in this.anatomy.limbs) {
+			console.log(limb, this.anatomy.limbs[limb]);
+			this._updateLimb(this.anatomy.limbs[limb]);
+		}
 	}
 
 	_updatePos() {
@@ -639,7 +775,20 @@ class Character extends Entity {
 	_render() {
 		this._initAnatomy();
 
-		this.element = svg('g.character', [
+		this.element = svg('g.character', [	
+			this.anatomy.body.element = svg('g.bodygroup', [
+				this.anatomy.body.path.element = svg('path.body'),
+				/*this.anatomy.body.path.chA = svg('circle', {r:5}),
+				this.anatomy.body.path.chB = svg('circle', {r:5}),*/
+
+				svg('g.limbs', [
+					this.anatomy.limbs.left_arm.element = svg('path.limb'),
+					this.anatomy.limbs.right_arm.element = svg('path.limb'),
+					this.anatomy.limbs.left_leg.element = svg('path.limb'),
+					this.anatomy.limbs.right_leg.element = svg('path.limb'),
+				])
+			]),
+
 			this.anatomy.head.element = svg('g.headgroup', [
 				svg('defs', [
 					svg('clipPath #headClip', [
@@ -650,26 +799,45 @@ class Character extends Entity {
 				svg('circle.head', {
 					r: 25,
 				}),
-				svg('circle.light', {
-					cx: 5, cy: -5, r: this.anatomy.head.radius,
-					'clip-path': 'url(#headClip)'
-				}),
 
-				this.anatomy.head.eyes.element = svg('g.eyes', {
+				svg('g', {
 					'clip-path': 'url(#headClip)'
 				}, [
-					svg('ellipse', {
-						cx: -7, rx: 3, ry: 9,
+					svg('circle.light', {
+						cx: 5, cy: -5, r: this.anatomy.head.radius,
 					}),
-					svg('ellipse', {
-						cx: 7, rx: 3, ry: 9,
-					})
+
+					this.anatomy.head.eyes.element = svg('g.eyes', {
+						
+					}, [
+						svg('ellipse', {
+							cx: -7, rx: 3, ry: 9,
+						}),
+						svg('ellipse', {
+							cx: 7, rx: 3, ry: 9,
+						})
+					])
 				])
-			])
-			
+				
+				/*,*/
+
+				
+			]),
 		]);
 
 		render.appendChild(this.element);
+	}
+}
+
+class SpeechBubble extends Entity {
+	_render() {
+		
+	}
+}
+
+class Caption extends Entity {
+	_render() {
+
 	}
 }
 
@@ -708,7 +876,26 @@ paper.addEventListener('mousedown', function(e) {
 		selected = null;
 
 		updateLayers();
+		updateInspector();
 	}
 });
 
-// new Character();
+
+let speechBubbleTest = svg('path', {
+	d: `
+		M 100, 100
+		l 100, 0
+		l 0, 100
+		l -100, 0
+		l 0, -100
+		m 50, 50
+		l 100, 0
+		l 0, 100
+		l -100, 0
+		l 0, -100
+	`,
+	stroke: '#FF0000',
+	'stroke-width': 4
+});
+
+render.appendChild(speechBubbleTest);

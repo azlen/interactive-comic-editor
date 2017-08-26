@@ -30,12 +30,14 @@
 [ ] Create Caption Entity
 [ ] Create SpeechBubble Entity
 [X] Create Person/Reader Entity
-    [ ] Torso
+    [X] Torso
+        [ ] Shadow
     [X] Head
         [X] Shadow
     [X] Eyes
-        [ ] Fix masking for eyes
-    [ ] Limbs
+        [X] Fix masking for eyes
+    [X] Limbs
+    [ ] Scaling
 
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?
@@ -44,7 +46,7 @@
     
 [X] Create keyboard shortcuts to create each entity rather than spending time developing user interface
 
-[ ] Create inspector, certain entities may have textual/select options better fit for an inspector (although textual options could be through contenteditable, I thnk it would be better just to put it in the inspector)
+[X] Create inspector, certain entities may have textual/select options better fit for an inspector (although textual options could be through contenteditable, I thnk it would be better just to put it in the inspector)
 
 [X] Create UI showing layers in current panel? possibly using keyboard shortcuts instead of UI actions to move and select different objects. ~~Shows layers in panel which contains mouse.~~ Shows layers in panel with currently selected object
 

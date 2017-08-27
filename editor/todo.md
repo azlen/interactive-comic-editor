@@ -22,18 +22,19 @@
 [ ] Move multiple selected entities
 [ ] Delete multiple selected entities
 
-[ ] Put panels on different layer
+// [ ] Put panels on different layer
 
 [X] Make it so that handles can be relative to relative handles!
 
 [X] Create Panel Entity
 [ ] Create Caption Entity
-[ ] Create SpeechBubble Entity
+[X] Create SpeechBubble Entity
 [X] Create Person/Reader Entity
     [X] Torso
-        [ ] Shadow
+        [X] Shadow
     [X] Head
         [X] Shadow
+        [X] use `<use>` for head shape (mask & light & head)! 
     [X] Eyes
         [X] Fix masking for eyes
     [X] Limbs

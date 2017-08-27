@@ -230,9 +230,10 @@ UI._Element = class {
  
 	set value(newValue) {
 		if(this._value != newValue) {
-			this.activateCallbacks(newValue);
+			this._value = newValue;
+			this.activateCallbacks(this._value);
 		}
-		return this._value = newValue;
+		return this._value;
 	}
 
 	_render() {
@@ -242,7 +243,9 @@ UI._Element = class {
 
 UI.Input = class extends UI._Element {
 	_updateValue() {
-		this.value = this.element.value;
+		setTimeout(function() {
+			this.value = this.element.value;
+		}.bind(this), 0);
 	}
 
 	_render() {
@@ -258,7 +261,8 @@ UI.Textarea = class extends UI._Element {
 
 	_render() {
 		this.element = h('textarea');
-		this.element.addEventListener('keyup', this._updateValue.bind(this));
+		this.element.addEventListener('input', this._updateValue.bind(this));
+		this.element.addEventListener('change', this._updateValue.bind(this));
 	}
 }
 
@@ -737,7 +741,6 @@ class Character extends Entity {
 			'right_leg': [{x: 30, y: 170}, {x: 30, y: 130}],
 		};
 		for(let limb in iHP) {
-			console.log(limb, limbs[limb]);
 			limbs[limb].control1 = this.addHandle(new Handle(iHP[limb][0].x, iHP[limb][0].y));
 			limbs[limb].control1.parent(this.anatomy.body.pos);
 			limbs[limb].control1.applyCallback(this._updateLimb.bind(this, limbs[limb]));
@@ -777,7 +780,19 @@ class Character extends Entity {
 
 		this.element = svg('g.character', [	
 			this.anatomy.body.element = svg('g.bodygroup', [
-				this.anatomy.body.path.element = svg('path.body'),
+				svg('defs', [
+					this.anatomy.body.path.element = svg('path #body'),
+
+					svg('clipPath #bodyClip', [
+						svg('use', { href: '#body' })
+					])
+				]),
+				
+				svg('use.body-border', { href: '#body' }),
+				svg('use.body-shadow', { href: '#body', /*'clip-path': 'url(#body)'*/ }),
+				svg('g', { 'clip-path': 'url(#bodyClip)' }, [
+					svg('use.body-highlight', { href: '#body', x: 5, y: -5 }),
+				]),
 				/*this.anatomy.body.path.chA = svg('circle', {r:5}),
 				this.anatomy.body.path.chB = svg('circle', {r:5}),*/
 
@@ -791,21 +806,20 @@ class Character extends Entity {
 
 			this.anatomy.head.element = svg('g.headgroup', [
 				svg('defs', [
+					svg('circle #head', {r: 25}),
 					svg('clipPath #headClip', [
-						svg('circle', { r: this.anatomy.head.radius - 2 })
+						svg('use', { href: '#head' })
+						// svg('circle', { r: this.anatomy.head.radius - 2 })
 					])
 				]),
 
-				svg('circle.head', {
-					r: 25,
-				}),
+				svg('use.head-border', { href: '#head'}),
 
 				svg('g', {
 					'clip-path': 'url(#headClip)'
 				}, [
-					svg('circle.light', {
-						cx: 5, cy: -5, r: this.anatomy.head.radius,
-					}),
+					svg('use.head-shadow', { href: '#head' }),
+					svg('use.head-highlight', { href: '#head', x: 5, y: -5 }),
 
 					this.anatomy.head.eyes.element = svg('g.eyes', {
 						
@@ -830,22 +844,103 @@ class Character extends Entity {
 }
 
 class SpeechBubble extends Entity {
+	constructor() {
+		super();
+
+		this._initHandles();
+		this._initUI();
+
+		this._updatePos();
+		this._updateScale();
+		this._updateStem();
+	}
+
+	_initUI() {
+		this.options.text = new UI.Textarea();
+		this.options.text.applyCallback(this._updateText.bind(this));
+	}
+
+	_updateText(text) {
+		this.text.textContent = text;
+	}
+
+	_initHandles() {
+		this.scale = this.addHandle(new Handle(100, 60));
+		this.scale.parent(this.pos);
+		this.scale.applyCallback(this._updateScale.bind(this));
+
+		this.stem_base = this.addHandle(new Handle(50, 30));
+		this.stem_base.parent(this.pos);
+		this.stem_base.applyCallback(this._updateStem.bind(this));
+
+		this.stem_tip = this.addHandle(new Handle(50, 100));
+		this.stem_tip.parent(this.pos);
+		this.stem_tip.applyCallback(this._updateStem.bind(this));
+	}
+
+	_updateScale() {
+		this.bubble.setAttribute('width', this.scale.x);
+		this.bubble.setAttribute('height', this.scale.y);
+
+		this.textBounds.setAttribute('width', this.scale.x);
+		this.textBounds.setAttribute('height', this.scale.y);
+	}
+
+	_updateStem() {
+		let offsetX = Math.cos(direction(this.stem_tip, this.stem_base) + Math.PI / 2) * 10;
+		let offsetY = Math.sin(direction(this.stem_tip, this.stem_base) + Math.PI / 2) * 10;
+		this.stem.setAttribute('points', `
+			${this.stem_tip.x}, ${this.stem_tip.y}
+			${this.stem_base.x + offsetX}, ${this.stem_base.y + offsetY}
+			${this.stem_base.x - offsetX}, ${this.stem_base.y - offsetY}
+		`)
+	}
+
+	_updatePos() {
+		this._applyTransformations();
+	}
+
+	_applyTransformations() {
+		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+	}
+
 	_render() {
+		this.element = svg('g.speechbubble', [
+			svg('defs', [
+				this.bubble = svg('rect #bubble', { rx: 10, ry: 10 }),
+				this.stem = svg('polygon #stem'),
+				svg('clipPath #speechbubble', [
+					svg('use', { href: '#bubble'}),
+					svg('use', { href: '#stem'})
+				])
+			]),
+			svg('use.bubble', { href: '#bubble'}),
+			svg('use.stem', { href: '#stem'}),
+			svg('rect.fill', { 'clip-path': 'url(#speechbubble)', x: -1000, y: -1000, width: 2000, height: 2000 }),
 		
+			this.textBounds = svg('foreignObject', [
+				this.text = h('p.text')
+			])
+		]);
+
+		render.appendChild(this.element);
 	}
 }
 
 class Caption extends Entity {
 	_render() {
+		this.element = svg();
 
+		render.appendChild(this.element);
 	}
 }
 
-hotkeys('ctrl+q, ctrl+w, ctrl+e', function(event, handler) {
+hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+q': new Panel(); break;
 		case 'ctrl+w': new Rect(); break;
 		case 'ctrl+e': new Character(); break;
+		case 'ctrl+r': new SpeechBubble(); break;
 	}
 });
 
@@ -879,23 +974,3 @@ paper.addEventListener('mousedown', function(e) {
 		updateInspector();
 	}
 });
-
-
-let speechBubbleTest = svg('path', {
-	d: `
-		M 100, 100
-		l 100, 0
-		l 0, 100
-		l -100, 0
-		l 0, -100
-		m 50, 50
-		l 100, 0
-		l 0, 100
-		l -100, 0
-		l 0, -100
-	`,
-	stroke: '#FF0000',
-	'stroke-width': 4
-});
-
-render.appendChild(speechBubbleTest);

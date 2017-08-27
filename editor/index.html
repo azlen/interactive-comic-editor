@@ -75,9 +75,23 @@
 			color: #FFFFFF;
 		}
 
+		.speechbubble .bubble, .speechbubble .stem {
+			stroke: #333333;
+			stroke-width: 4px;
+			stroke-linejoin: round;
+		}
+
+		.speechbubble .fill {
+			fill: #FFFFFF;
+		}
+
 		/* ---------------- */
 		/*       SVG
 		/* ---------------- */
+
+		path, circle {
+			fill: inherit;
+		}
 
 		.paper {
 			width: 100%;
@@ -121,13 +135,14 @@
 			display: none;
 		}
 
-		.character .headgroup .head  {
-			fill: #CFB871;
+		.character .headgroup .head-border  {
 			stroke: #333333;
-			stroke-width: 4px;
+			stroke-width: 4px; /* double stroke width because of clip */
 		}
-
-		.character .headgroup .light {
+		.character .headgroup .head-shadow {
+			fill: #CFB871;
+		}
+		.character .headgroup .head-highlight {
 			fill: #FFE492;
 		}
 
@@ -135,10 +150,15 @@
 			fill: #333333;
 		}
 
-		.character .bodygroup .body {
-			fill: #0099FF;
+		.character .bodygroup .body-border {
 			stroke: #333333;
-			stroke-width: 4px;
+			stroke-width: 4px; /* double stroke width because of clip */
+		}
+		.character .bodygroup .body-shadow {
+			fill: #2B7D9C;
+		}
+		.character .bodygroup .body-highlight {
+			fill: #0099FF;
 		}
 
 		.character .bodygroup .limbs .limb {
@@ -147,6 +167,12 @@
 			stroke-width: 4px;
 		}
 
+		.speechbubble .text {
+			margin: 0;
+			padding: 10px;
+			font-size: 10pt;
+			user-select: none;
+		}
 	</style>
 
 	<script src="lib/hotkeys/hotkeys.js"></script>

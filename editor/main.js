@@ -52,7 +52,7 @@
 	let target, callbacks;
 	let down, x, y, dx, dy;
 
-	window.mouse = {x: 100, y: 100};
+	window.mouse = {x: 100, y: 100, target: null};
 
 	function _mousedown(fns, e) {
 		target = e.target;
@@ -70,6 +70,7 @@
 	function _mousemove(e) {
 		mouse.x = e.clientX * viewBox.scale;
 		mouse.y = e.clientY * viewBox.scale;
+		mouse.target = e.target;
 
 		if(down) {
 			dx = mouse.x - x;
@@ -131,6 +132,14 @@
 	}
 })(); // direction, distance, radToDeg
 
+(function() {
+	var count = 0;
+
+	window.id = function() {
+		return (count++).toString(36);
+	}
+})(); // id
+
 let handles, render, selected = null;
 
 let paper = svg('svg.paper', [
@@ -188,12 +197,14 @@ function updateInspector() {
 function updateLayers() {
 	// clear layers
 	[].slice.call(layers.children).forEach(function(child) { layers.removeChild(child) });
-	// don't add if nothing selected
-	if(selected === null) return;
 	// add layers
-	[].slice.call(selected.element.parentElement.children).forEach(function(element) {
+	let children = selected !== null ? selected.element.parentElement.children : render.children;
+	[].slice.call(children).forEach(function(element) {
 		let selected = element.classList.contains('selected') ? '.selected' : '';
-		layers.appendChild( h(`.layer${selected}`, h('i',`(${element.tagName})`)) )
+		layers.appendChild(h(`.layer${selected}`, [
+			`${element.getAttribute('data-type')} `,
+			h('i',`(${element.tagName})`)
+		]));
 	});
 }
 
@@ -453,9 +464,13 @@ class RotationHandle extends Handle {
 	}
 }
 
-class Entity {
 
+let entities = {};
+
+class Entity {
 	constructor() {
+		this._generateID();
+
 		this.handles = [];
 
 		this.options = {
@@ -463,10 +478,24 @@ class Entity {
 		};
 
 		this._render();
+		this.element.setAttribute('data-id', this.id);
+		this.element.setAttribute('data-type', this.constructor.name);
+
 		this._initPos();
 
 		this._makeSelectable();
 		this.select();
+	}
+
+	_generateID() {
+		this.id = id();
+		entities[this.id] = this;
+	}
+
+	addOption(name, type) {
+		this.options[name] = type;
+		updateUI();
+		return type;
 	}
 
 	addHandle(handle) {
@@ -497,11 +526,13 @@ class Entity {
 	}
 
 	select(e) {
-		if(e) e.stopPropagation();
+		// if(e) e.stopPropagation();
 		if(selected != null) selected.deselect();
 		this.showHandles();
 		this.element.classList.add('selected');
 		selected = this;
+
+		this._updatePos();
 
 		updateUI();
 	}
@@ -518,8 +549,17 @@ class Entity {
 	}
 
 	_updatePos() {
-		this.element.setAttribute('x', this.pos.x - this.scale.x);
-		this.element.setAttribute('y', this.pos.y - this.scale.y);
+		let pos = this._convertPointToLocalCoords(this.pos);
+		this.element.setAttribute('x', pos.x - this.scale.x);
+		this.element.setAttribute('y', pos.y - this.scale.y);
+	}
+
+	_convertPointToLocalCoords(p) {
+		let matrix = this.element.parentElement.getScreenCTM();
+		return {
+			x: (matrix.a * p.x) + (matrix.c * p.y) - matrix.e - viewBox.x,
+			y: (matrix.b * p.x) + (matrix.d * p.y) - matrix.f - viewBox.y
+		}
 	}
 	
 	_render() {
@@ -570,15 +610,34 @@ class Panel extends Entity {
 
 		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 25));
 
+		this.entities = [];
+
 		this._initScale();
 
 		this._updateScale();
 		this._updatePos();
 	}
 
+	toggleEntity(entity) {
+		let index = this.entities.indexOf(entity);
+		if(index != -1) {
+			render.appendChild(entity.element);
+			this.entities.splice(index, 1);
+		}else{
+			this.content.appendChild(entity.element);
+			this.entities.push(entity);
+		}
+		entity._updatePos();
+		updateLayers();
+	}
+
 	_updatePos() {
-		this.element.setAttribute('x', this.pos.x);
-		this.element.setAttribute('y', this.pos.y);
+		let pos = this._convertPointToLocalCoords(this.pos);
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+
+		(this.entities || []).forEach(function(entity) {
+			entity._updatePos();
+		});
 	}
 
 	_initScale() {
@@ -590,12 +649,23 @@ class Panel extends Entity {
 	}
 
 	_updateScale() {
-		this.element.setAttribute('width', this.scale.x);
-		this.element.setAttribute('height', this.scale.y);
+		this.panel.setAttribute('width', this.scale.x);
+		this.panel.setAttribute('height', this.scale.y);
 	}
 
 	_render() {
-		this.element = svg('rect.panel', {width: 100, height: 100});
+		this.element = svg('g', [
+			svg('defs', [
+				this.panel = svg(`rect #panel${this.id}`, { width: 100, height: 100 }),
+
+				svg(`clipPath #panelClip${this.id}`, [
+					svg('use', { href: `#panel${this.id}` })
+				])
+			]),
+
+			svg('use.panel', { href: `#panel${this.id}`, 'data-id': this.id }),
+			this.content = svg('g.content', { 'clip-path': `url(#panelClip${this.id})` })
+		])
 		
 		render.appendChild(this.element);
 	}
@@ -762,7 +832,6 @@ class Character extends Entity {
 
 	_updateLimbs() {
 		for(let limb in this.anatomy.limbs) {
-			console.log(limb, this.anatomy.limbs[limb]);
 			this._updateLimb(this.anatomy.limbs[limb]);
 		}
 	}
@@ -772,7 +841,8 @@ class Character extends Entity {
 	}
 
 	_applyTransformations() {
-		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+		let pos = this._convertPointToLocalCoords(this.pos);
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
 	_render() {
@@ -781,45 +851,43 @@ class Character extends Entity {
 		this.element = svg('g.character', [	
 			this.anatomy.body.element = svg('g.bodygroup', [
 				svg('defs', [
-					this.anatomy.body.path.element = svg('path #body'),
+					this.anatomy.body.path.element = svg(`path #body${this.id}`),
 
-					svg('clipPath #bodyClip', [
-						svg('use', { href: '#body' })
+					svg(`clipPath #bodyClip${this.id}`, [
+						svg('use', { href: `#body${this.id}` })
 					])
 				]),
-				
-				svg('use.body-border', { href: '#body' }),
-				svg('use.body-shadow', { href: '#body', /*'clip-path': 'url(#body)'*/ }),
-				svg('g', { 'clip-path': 'url(#bodyClip)' }, [
-					svg('use.body-highlight', { href: '#body', x: 5, y: -5 }),
-				]),
-				/*this.anatomy.body.path.chA = svg('circle', {r:5}),
-				this.anatomy.body.path.chB = svg('circle', {r:5}),*/
 
 				svg('g.limbs', [
 					this.anatomy.limbs.left_arm.element = svg('path.limb'),
 					this.anatomy.limbs.right_arm.element = svg('path.limb'),
 					this.anatomy.limbs.left_leg.element = svg('path.limb'),
 					this.anatomy.limbs.right_leg.element = svg('path.limb'),
-				])
+				]),
+
+				svg('use.body-border', { href: `#body${this.id}` }),
+				svg('use.body-shadow', { href: `#body${this.id}`, /*'clip-path': 'url(#body)'*/ }),
+				svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
+					svg('use.body-highlight', { href: `#body${this.id}`, x: 5, y: -5 }),
+				]),
 			]),
 
 			this.anatomy.head.element = svg('g.headgroup', [
 				svg('defs', [
-					svg('circle #head', {r: 25}),
-					svg('clipPath #headClip', [
-						svg('use', { href: '#head' })
+					svg(`circle #head${this.id}`, {r: 25}),
+					svg(`clipPath #headClip${this.id}`, [
+						svg('use', { href: `#head${this.id}` })
 						// svg('circle', { r: this.anatomy.head.radius - 2 })
 					])
 				]),
 
-				svg('use.head-border', { href: '#head'}),
+				svg('use.head-border', { href: `#head${this.id}`}),
 
 				svg('g', {
-					'clip-path': 'url(#headClip)'
+					'clip-path': `url(#headClip${this.id})`
 				}, [
-					svg('use.head-shadow', { href: '#head' }),
-					svg('use.head-highlight', { href: '#head', x: 5, y: -5 }),
+					svg('use.head-shadow', { href: `#head${this.id}` }),
+					svg('use.head-highlight', { href: `#head${this.id}`, x: 5, y: -5 }),
 
 					this.anatomy.head.eyes.element = svg('g.eyes', {
 						
@@ -856,8 +924,8 @@ class SpeechBubble extends Entity {
 	}
 
 	_initUI() {
-		this.options.text = new UI.Textarea();
-		this.options.text.applyCallback(this._updateText.bind(this));
+		let text = this.addOption('text', new UI.Textarea());
+		text.applyCallback(this._updateText.bind(this));
 	}
 
 	_updateText(text) {
@@ -901,7 +969,8 @@ class SpeechBubble extends Entity {
 	}
 
 	_applyTransformations() {
-		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+		let pos = this._convertPointToLocalCoords(this.pos);
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
 	_render() {
@@ -928,34 +997,48 @@ class SpeechBubble extends Entity {
 }
 
 class Caption extends Entity {
+	constructor() {
+		super();
+	}
+
 	_render() {
-		this.element = svg();
+		this.element = svg('rect.caption');
 
 		render.appendChild(this.element);
 	}
 }
 
-hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
+hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 	switch(handler.key) {
-		case 'ctrl+q': new Panel(); break;
-		case 'ctrl+w': new Rect(); break;
-		case 'ctrl+e': new Character(); break;
-		case 'ctrl+r': new SpeechBubble(); break;
+		case 'ctrl+1': new Panel(); break;
+		case 'ctrl+2': new Rect(); break;
+		case 'ctrl+3': new Character(); break;
+		case 'ctrl+4': new SpeechBubble(); break;
 	}
 });
 
-hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
+hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
 	if(selected === null) return;
 	var el = selected.element;
 	var p = el.parentElement;
 	switch(handler.key) {
-		case 'ctrl+a': p.insertBefore(el, p.children[0]); break;
-		case 'ctrl+s': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
-		case 'ctrl+d': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
-		case 'ctrl+f': p.appendChild(el); break;
+		case 'ctrl+q': p.insertBefore(el, p.children[0]); break;
+		case 'ctrl+w': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
+		case 'ctrl+e': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
+		case 'ctrl+r': p.appendChild(el); break;
 	}
 	updateUI();
 });
+
+hotkeys('ctrl+a', function(event, handler) {
+	switch(handler.key) {
+		case 'ctrl+a':
+			if(mouse.target.classList.contains('panel') && selected != null) {
+				entities[mouse.target.getAttribute('data-id')].toggleEntity(selected);
+			}
+			break;
+	}
+})
 
 hotkeys('ctrl+shift+x', function(event, handler) {
 	if(selected != null) {

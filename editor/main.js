@@ -142,8 +142,26 @@
 
 let handles, render, selected = null;
 
-let paper = svg('svg.paper', [
+let paper = svg('svg.paper', [	
+	svg('defs', [
+		svg('filter #blur', [
+			svg('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 4, result: 'blur' }),
+			/*svg('feTurbulence', { baseFrequency: 0.08, numOctaves: 1, seed: 1, result: 'turbulence'}),
+			svg('feDisplacementMap', { in: 'blur', in2: 'turbulence', scale: 9 })*/
+		]),
+		svg('filter #noise', [
+			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 1.75, result: 'noisy' }),
+			// svg('feColorMatrix', { type: 'saturate', values: 0 }),
+			svg('feBlend', { in: 'SourceGraphic', in2: 'noisy', mode: 'multiply', result: 'blend' }),
+			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply' }),
+		]),
+		svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' }, [
+			panelMask = svg('g.panels_mask'),
+			captionMask = svg('g.captions_mask')
+		])
+	]),
 	render = svg('g.render'),
+	extraborders = svg('g.extraborders', { mask: 'url(#panelMask)' }),
 	handles = svg('g.handles'),
 ]);
 
@@ -181,9 +199,15 @@ let layers = document.querySelector('.layers .content');
 
 window.addEventListener('resize', updateViewBox);
 
+function clearChildren(element) {
+	[].slice.call(element.children).forEach(function(child) {
+		element.removeChild(child);
+	});
+}
+
 function updateInspector() {
 	// clear inspector
-	[].slice.call(inspector.children).forEach(function(child) { inspector.removeChild(child) });
+	clearChildren(inspector);
 	// don't add if nothing selected
 	if(selected === null) return;
 	// add items to inspector
@@ -196,7 +220,7 @@ function updateInspector() {
 
 function updateLayers() {
 	// clear layers
-	[].slice.call(layers.children).forEach(function(child) { layers.removeChild(child) });
+	clearChildren(layers);
 	// add layers
 	let children = selected !== null ? selected.element.parentElement.children : render.children;
 	[].slice.call(children).forEach(function(element) {
@@ -211,6 +235,41 @@ function updateLayers() {
 function updateUI() {
 	updateLayers();
 	updateInspector();
+}
+
+function updatePanelMask() {
+	clearChildren(panelMask);
+	clearChildren(captionMask);
+	clearChildren(extraborders);
+
+	for(_id in entities) {
+		if(entities[_id].constructor === Panel) {
+			panelMask.appendChild(svg('use', {
+				href: `#panel${_id}`,
+				fill: 'white',
+			}));
+		}
+		if(entities[_id].constructor === Caption) {
+			captionMask.appendChild(svg('use', {
+				href: `#caption${_id}`,
+				stroke: `black`,
+				'stroke-width': 12.5
+			}));
+
+			extraborders.appendChild(svg('use', {
+				href: `#caption${_id}`,
+				stroke: `#333333`,
+				'stroke-width': 16.5
+			}));
+		}
+	}
+}
+
+function save() {
+	let s = {
+		entities: entities.map(function(entity) {})
+	};
+	return s;
 }
 
 var UI = {};
@@ -572,43 +631,12 @@ class Entity {
 	}
 }
 
-class Rect extends Entity {
-
-	constructor() {
-
-		super();
-
-		this._initScale();
-		
-		this._updateScale();
-		this._updatePos();
-	}
-
-	_initScale() {
-		this.scale = this.addHandle(new Handle(100, 30));
-		this.scale.parent(this.pos);
-		this.scale.applyCallback(this._updateScale.bind(this), this._updatePos.bind(this));
-		this.scale.applyConstraint(constraints.positive);
-	}
-
-	_updateScale() {
-		this.element.setAttribute('width', this.scale.x * 2);
-		this.element.setAttribute('height', this.scale.y * 2);
-	}
-	
-	_render() {
-		this.element = svg('rect', {fill: '#f00'});
-		
-		render.appendChild(this.element);
-	}
-}
-
 class Panel extends Entity {
 
 	constructor() {
 		super();
 
-		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 25));
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 
 		this.entities = [];
 
@@ -616,6 +644,8 @@ class Panel extends Entity {
 
 		this._updateScale();
 		this._updatePos();
+
+		updatePanelMask();
 	}
 
 	toggleEntity(entity) {
@@ -633,7 +663,8 @@ class Panel extends Entity {
 
 	_updatePos() {
 		let pos = this._convertPointToLocalCoords(this.pos);
-		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.panel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.content.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 
 		(this.entities || []).forEach(function(entity) {
 			entity._updatePos();
@@ -645,7 +676,7 @@ class Panel extends Entity {
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
 		this.scale.applyConstraint(constraints.minimum.bind(null, 50, 50));
-		this.scale.applyConstraint(constraints.snapToGrid.bind(null, 25));
+		this.scale.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 	}
 
 	_updateScale() {
@@ -654,7 +685,7 @@ class Panel extends Entity {
 	}
 
 	_render() {
-		this.element = svg('g', [
+		this.element = svg('g', { mask: 'url(#panelMask)' }, [
 			svg('defs', [
 				this.panel = svg(`rect #panel${this.id}`, { width: 100, height: 100 }),
 
@@ -663,8 +694,11 @@ class Panel extends Entity {
 				])
 			]),
 
-			svg('use.panel', { href: `#panel${this.id}`, 'data-id': this.id }),
-			this.content = svg('g.content', { 'clip-path': `url(#panelClip${this.id})` })
+			svg('g', { 'clip-path': `url(#panelClip${this.id})` }, [
+				svg('use.panel', { href: `#panel${this.id}`, 'data-id': this.id }),
+				this.content = svg('g.content'),
+				svg('use.panel-border', { href: `#panel${this.id}`, 'data-id': this.id }),
+			])
 		])
 		
 		render.appendChild(this.element);
@@ -741,7 +775,7 @@ class Character extends Entity {
 		body.control1.applyCallback(this._updateBodyPath.bind(this));
 		body.control1.handle.applyCallback(this._updateBodyPath.bind(this));
 
-		body.control2 = this.addHandle(new Handle(30, 50));
+		body.control2 = this.addHandle(new Handle(-13, 51));
 		body.control2.parent(body.pos);
 		body.control2.applyCallback(this._updateBodyPath.bind(this));
 
@@ -805,10 +839,10 @@ class Character extends Entity {
 	_initLimbHandles() {
 		let limbs = this.anatomy.limbs;
 		let iHP = { // initialHandlePositions
-			'left_arm': [{x: -50, y: 70}, {x: -50, y: 30}],
-			'right_arm': [{x: 30, y: 70}, {x: 30, y: 30}],
-			'left_leg': [{x: -30, y: 170}, {x: -30, y: 130}],
-			'right_leg': [{x: 30, y: 170}, {x: 30, y: 130}],
+			'left_arm': [{x: -53, y: 96}, {x: -63, y: 38}],
+			'right_arm': [{x: 65, y: 88}, {x: 26, y: 54}],
+			'left_leg': [{x: -29, y: 203}, {x: 3, y: 130}],
+			'right_leg': [{x: 31, y: 204}, {x: 30, y: 130}],
 		};
 		for(let limb in iHP) {
 			limbs[limb].control1 = this.addHandle(new Handle(iHP[limb][0].x, iHP[limb][0].y));
@@ -866,9 +900,9 @@ class Character extends Entity {
 				]),
 
 				svg('use.body-border', { href: `#body${this.id}` }),
-				svg('use.body-shadow', { href: `#body${this.id}`, /*'clip-path': 'url(#body)'*/ }),
 				svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
-					svg('use.body-highlight', { href: `#body${this.id}`, x: 5, y: -5 }),
+					svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
+					svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 				]),
 			]),
 
@@ -886,8 +920,8 @@ class Character extends Entity {
 				svg('g', {
 					'clip-path': `url(#headClip${this.id})`
 				}, [
-					svg('use.head-shadow', { href: `#head${this.id}` }),
-					svg('use.head-highlight', { href: `#head${this.id}`, x: 5, y: -5 }),
+					svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
+					svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 
 					this.anatomy.head.eyes.element = svg('g.eyes', {
 						
@@ -976,16 +1010,16 @@ class SpeechBubble extends Entity {
 	_render() {
 		this.element = svg('g.speechbubble', [
 			svg('defs', [
-				this.bubble = svg('rect #bubble', { rx: 10, ry: 10 }),
-				this.stem = svg('polygon #stem'),
-				svg('clipPath #speechbubble', [
-					svg('use', { href: '#bubble'}),
-					svg('use', { href: '#stem'})
+				this.bubble = svg(`rect #bubble${this.id}`, { rx: 10, ry: 10 }),
+				this.stem = svg(`polygon #stem${this.id}`),
+				svg(`clipPath #speechbubble${this.id}`, [
+					svg('use', { href: `#bubble${this.id}`}),
+					svg('use', { href: `#stem${this.id}`})
 				])
 			]),
-			svg('use.bubble', { href: '#bubble'}),
-			svg('use.stem', { href: '#stem'}),
-			svg('rect.fill', { 'clip-path': 'url(#speechbubble)', x: -1000, y: -1000, width: 2000, height: 2000 }),
+			svg('use.bubble', { href: `#bubble${this.id}`}),
+			svg('use.stem', { href: `#stem${this.id}`}),
+			svg('rect.fill', { 'clip-path': `url(#speechbubble${this.id})`, x: -1000, y: -1000, width: 2000, height: 2000 }),
 		
 			this.textBounds = svg('foreignObject', [
 				this.text = h('p.text')
@@ -999,10 +1033,56 @@ class SpeechBubble extends Entity {
 class Caption extends Entity {
 	constructor() {
 		super();
+
+		this.pos.applyConstraint(constraints.snapToGrid.bind(this, 12.5));
+
+		this._initScale();
+		this._initUI();
+
+		this._updateScale();
+
+		updatePanelMask();
+	}
+
+	_initUI() {
+		let text = this.addOption('text', new UI.Textarea());
+		text.applyCallback(this._updateText.bind(this));
+	}
+
+	_updateText(text) {
+		this.text.textContent = text;
+	}
+
+	_initScale() {
+		this.scale = this.addHandle(new Handle(100, 50));
+		this.scale.parent(this.pos);
+		this.scale.applyConstraint(constraints.snapToGrid.bind(this, 12.5));
+		this.scale.applyCallback(this._updateScale.bind(this));
+	}
+
+	_updateScale() {
+		this.rectangle.setAttribute('width', this.scale.x);
+		this.rectangle.setAttribute('height', this.scale.y);
+
+		this.textBounds.setAttribute('width', this.scale.x);
+		this.textBounds.setAttribute('height', this.scale.y);
+	}
+
+	_updatePos() {
+		this.rectangle.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+		this.textBounds.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
 	}
 
 	_render() {
-		this.element = svg('rect.caption');
+		this.element = svg('g.captiongroup', [
+			svg('defs', [
+				this.rectangle = svg(`rect #caption${this.id}`),
+			]),
+			svg('use.caption', { href: `#caption${this.id}` }),
+			this.textBounds = svg('foreignObject', [
+				this.text = h('p.text')
+			])
+		]);
 
 		render.appendChild(this.element);
 	}
@@ -1011,7 +1091,7 @@ class Caption extends Entity {
 hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+1': new Panel(); break;
-		case 'ctrl+2': new Rect(); break;
+		case 'ctrl+2': new Caption(); break;
 		case 'ctrl+3': new Character(); break;
 		case 'ctrl+4': new SpeechBubble(); break;
 	}
@@ -1028,6 +1108,7 @@ hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
 		case 'ctrl+r': p.appendChild(el); break;
 	}
 	updateUI();
+	updatePanelMask();
 });
 
 hotkeys('ctrl+a', function(event, handler) {

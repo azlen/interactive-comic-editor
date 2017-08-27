@@ -116,12 +116,15 @@
 
 		.panel {
 			fill: #FFFFFF;
+		}
+		.panel-border {
+			fill: none;
 			stroke: #333333;
-			stroke-width: 2px;
+			stroke-width: 4px; /* double width for mask */
 		}
-		.panel.selected {
+		/*.selected .panel-border {
 			stroke: #0099FF;
-		}
+		}*/
 
 		.handle circle {
 			fill: #FFFFFF;
@@ -185,11 +188,21 @@
 			stroke-linecap: round;
 		}
 
-		.speechbubble .text {
+		.speechbubble .text, .captiongroup .text {
 			margin: 0;
 			padding: 10px;
 			font-size: 10pt;
 			user-select: none;
+		}
+
+		.captiongroup .caption {
+			fill: #FFFFFF;
+			stroke: #333333;
+			stroke-width: 2px;
+		}
+
+		.extraborders {
+			pointer-events: none;
 		}
 	</style>
 

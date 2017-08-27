@@ -2,6 +2,7 @@
 
 # TODO
 
+[X] Create git
 [ ] Create github repo?
 [X] Allow constraints on dragging, and be able to apply constraints mid-drag
     - types of constraints: 
@@ -22,6 +23,8 @@
 [ ] Move multiple selected entities
 [ ] Delete multiple selected entities
 
+[X] FONT!
+
 [X] Give each entity ID
 [X] Store entities in array/object
 
@@ -30,6 +33,7 @@
 [X] Create Panel Entity
 [ ] Create Caption Entity
 [X] Create SpeechBubble Entity
+    [ ] Height based off `<p>`?
 [X] Create Person/Reader Entity
     [X] Torso
         [X] Shadow
@@ -39,15 +43,16 @@
     [X] Eyes
         [X] Fix masking for eyes
     [X] Limbs
+    [X] Grainy shadows
     [ ] Scaling
-    [ ] Create better default position for character (XD)
+    [X] Create better default position for character (XD)
     [ ] Shirt Logo
     [ ] Mouth
 
 [ ] Allow entity to be masked by MULTIPLE panels
 [ ] if masked by multiple panels, highlight panels when entity selected
 
-[ ] Mass panel mask (captions subtract from panels, panels could subtract from panels? etc. basically allow shape of panels to change. This is kinda complicated but cool :P you PROBABLY won't regret it. It will also probably fix the problem of entities overlapping the inner border [or just create a worse problem of overlapping the whole border... oops.])
+[X] Mass panel mask (captions subtract from panels, panels could subtract from panels? etc. basically allow shape of panels to change. This is kinda complicated but cool :P you PROBABLY won't regret it. It will also probably fix the problem of entities overlapping the inner border [or just create a worse problem of overlapping the whole border... oops.])
 
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?

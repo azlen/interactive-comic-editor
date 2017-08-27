@@ -15,14 +15,15 @@
     - updateHandles calls the update function for every handle?
 
 [X] Create rotation handle, this handle could have its own handle for rotation that appears when the mouse is close in distance (2x où 3x the radius)
-[ ] Mask entities in panel
+[X] Mask entities in panel
 [X] Select only 1 entity at once, hide handles
 [X] Delete selected entity
 [ ] Select multiple entities
 [ ] Move multiple selected entities
 [ ] Delete multiple selected entities
 
-// [ ] Put panels on different layer
+[X] Give each entity ID
+[X] Store entities in array/object
 
 [X] Make it so that handles can be relative to relative handles!
 
@@ -39,9 +40,19 @@
         [X] Fix masking for eyes
     [X] Limbs
     [ ] Scaling
+    [ ] Create better default position for character (XD)
+    [ ] Shirt Logo
+    [ ] Mouth
+
+[ ] Allow entity to be masked by MULTIPLE panels
+[ ] if masked by multiple panels, highlight panels when entity selected
+
+[ ] Mass panel mask (captions subtract from panels, panels could subtract from panels? etc. basically allow shape of panels to change. This is kinda complicated but cool :P you PROBABLY won't regret it. It will also probably fix the problem of entities overlapping the inner border [or just create a worse problem of overlapping the whole border... oops.])
 
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?
+
+- HOW WILL HANDLE MULTIPLE FONT SIZESS SDSAS?>D?ASF>??
 
 [ ] create multiple pages, switch between
     

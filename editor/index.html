@@ -1,7 +1,12 @@
 <!DOCTYPE html>
 <html>
 <head>
+	<link rel="stylesheet" type="text/css" href="./comic-neue-2.3/font.css" />
+
 	<style>
+		/* ---------------- */
+		/*   BASIC STUFF
+		/* ---------------- */
 
 		html, body {
 			width: 100%;
@@ -13,6 +18,17 @@
 			color: #333;
 
 			overflow: hidden;
+		}
+
+		body {
+			font-family: 'Comic Neue', sans-serif;
+			font-weight: 400;
+			font-size: 1em;
+			line-height: 1.5;
+			/* Enable a font's kerning: http://stackoverflow.com/questions/15160897/font-feature-settings-what-is-the-correct-syntax */
+			font-feature-settings: "kern";
+			-moz-font-feature-settings: "kern";
+			-webkit-font-feature-settings: "kern";
 		}
 
 		h1, h2, h3 {

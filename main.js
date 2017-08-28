@@ -153,15 +153,13 @@ let paper = svg('svg.paper', [
 			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 1.75, result: 'noisy' }),
 			// svg('feColorMatrix', { type: 'saturate', values: 0 }),
 			svg('feBlend', { in: 'SourceGraphic', in2: 'noisy', mode: 'multiply', result: 'blend' }),
-			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply' }),
+			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply', result: 'blend2' }),
+			svg('feBlend', { in: 'blend2', in2: 'noisy', mode: 'multiply' }),
 		]),
-		svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' }, [
-			panelMask = svg('g.panels_mask'),
-			captionMask = svg('g.captions_mask')
-		])
+		panelMask = svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' })
 	]),
 	render = svg('g.render'),
-	extraborders = svg('g.extraborders', { mask: 'url(#panelMask)' }),
+	extraBorders = svg('g.extraborders', { mask: 'url(#panelMask)' }),
 	handles = svg('g.handles'),
 ]);
 
@@ -235,34 +233,6 @@ function updateLayers() {
 function updateUI() {
 	updateLayers();
 	updateInspector();
-}
-
-function updatePanelMask() {
-	clearChildren(panelMask);
-	clearChildren(captionMask);
-	clearChildren(extraborders);
-
-	for(_id in entities) {
-		if(entities[_id].constructor === Panel) {
-			panelMask.appendChild(svg('use', {
-				href: `#panel${_id}`,
-				fill: 'white',
-			}));
-		}
-		if(entities[_id].constructor === Caption) {
-			captionMask.appendChild(svg('use', {
-				href: `#caption${_id}`,
-				stroke: `black`,
-				'stroke-width': 12.5
-			}));
-
-			extraborders.appendChild(svg('use', {
-				href: `#caption${_id}`,
-				stroke: `#333333`,
-				'stroke-width': 16.5
-			}));
-		}
-	}
 }
 
 function save() {
@@ -626,6 +596,9 @@ class Entity {
 	}
 
 	destroy() {
+		if(this.ondestroy) {
+			this.ondestroy();
+		}
 		this.element.parentElement.removeChild(this.element);
 		this.destroyHandles();
 	}
@@ -644,8 +617,6 @@ class Panel extends Entity {
 
 		this._updateScale();
 		this._updatePos();
-
-		updatePanelMask();
 	}
 
 	toggleEntity(entity) {
@@ -699,9 +670,19 @@ class Panel extends Entity {
 				this.content = svg('g.content'),
 				svg('use.panel-border', { href: `#panel${this.id}`, 'data-id': this.id }),
 			])
-		])
+		]);
+
+		this.maskElement = svg('use.panel-mask', {
+			href: `#panel${this.id}`,
+			fill: 'white'
+		});
+		panelMask.insertBefore(this.maskElement, panelMask.firstChild);
 		
 		render.appendChild(this.element);
+	}
+
+	ondestroy() {
+		this.maskElement.parentElement.removeChild(this.maskElement);
 	}
 }
 
@@ -1040,8 +1021,6 @@ class Caption extends Entity {
 		this._initUI();
 
 		this._updateScale();
-
-		updatePanelMask();
 	}
 
 	_initUI() {
@@ -1084,7 +1063,26 @@ class Caption extends Entity {
 			])
 		]);
 
+		this.maskElement = svg('use.caption-mask', { 
+			href: `#caption${this.id}`,
+			stroke: `black`,
+			'stroke-width': 12.5
+		});
+		panelMask.appendChild(this.maskElement);
+
+		this.extraBorder = svg('use.caption-extra-border', {
+			href: `#caption${this.id}`,
+			stroke: '#333333',
+			'stroke-width': 16.5
+		});
+		extraBorders.appendChild(this.extraBorder);
+
 		render.appendChild(this.element);
+	}
+
+	ondestroy() {
+		this.maskElement.parentElement.removeChild(this.maskElement);
+		this.extraBorder.parentElement.removeChild(this.extraBorder);
 	}
 }
 
@@ -1108,7 +1106,6 @@ hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
 		case 'ctrl+r': p.appendChild(el); break;
 	}
 	updateUI();
-	updatePanelMask();
 });
 
 hotkeys('ctrl+a', function(event, handler) {

@@ -54,6 +54,10 @@
 
 [X] Mass panel mask (captions subtract from panels, panels could subtract from panels? etc. basically allow shape of panels to change. This is kinda complicated but cool :P you PROBABLY won't regret it. It will also probably fix the problem of entities overlapping the inner border [or just create a worse problem of overlapping the whole border... oops.])
 
+[ ] ADD COMMENTS TO EVERYTHING
+
+[ ] hotkey panel
+
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?
 

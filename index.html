@@ -91,14 +91,9 @@
 			color: #FFFFFF;
 		}
 
-		.speechbubble .bubble, .speechbubble .stem {
-			stroke: #333333;
-			stroke-width: 4px;
-			stroke-linejoin: round;
-		}
-
-		.speechbubble .fill {
-			fill: #FFFFFF;
+		.hotkey-description {
+			font-size: 9pt;
+			color: #999;
 		}
 
 		/* ---------------- */
@@ -175,7 +170,7 @@
 			stroke-linejoin: round;
 		}
 		.character .bodygroup .body-shadow {
-			fill: #0064A7;
+			fill: #0099FF;
 		}
 		.character .bodygroup .body-highlight {
 			fill: #0099FF;
@@ -186,6 +181,16 @@
 			stroke: #333333;
 			stroke-width: 4px;
 			stroke-linecap: round;
+		}
+
+		.speechbubble .bubble, .speechbubble .stem {
+			stroke: #333333;
+			stroke-width: 4px;
+			stroke-linejoin: round;
+		}
+
+		.speechbubble .fill {
+			fill: #FFFFFF;
 		}
 
 		.speechbubble .text, .captiongroup .text {
@@ -217,6 +222,22 @@
 		<div class="layers">
 			<h2>Layers</h2>
 			<div class="content"></div>
+		</div>
+		<div class="hotkey-description">
+			<ul>
+				<li>ctrl + 1: Create Panel</li>
+				<li>ctrl + 2: Create Caption</li>
+				<li>ctrl + 3: Create Character</li>
+				<li>ctrl + 3: Create Speech Bubble</li>
+				<br/>
+				<li>ctrl + q: Move selected to back</li>
+				<li>ctrl + w: Move selected back 1 layer</li>
+				<li>ctrl + e: Move selected forward 1 layer</li>
+				<li>ctrl + r: Move selected to front</li>
+				<br/>
+				<li>ctrl + a: Toggle selected masked by hovered panel</li>
+				<li>ctrl + shift + x: Delete selected</li>
+			</ul>
 		</div>
 	</div>
 

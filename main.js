@@ -1102,10 +1102,10 @@ hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
 	var el = selected.element;
 	var p = el.parentElement;
 	switch(handler.key) {
-		case 'ctrl+q': p.insertBefore(el, p.children[0]); break;
-		case 'ctrl+w': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
-		case 'ctrl+e': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
-		case 'ctrl+r': p.appendChild(el); break;
+		case 'ctrl+r': p.insertBefore(el, p.children[0]); break;
+		case 'ctrl+e': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
+		case 'ctrl+w': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
+		case 'ctrl+q': p.appendChild(el); break;
 	}
 	updateUI();
 	updatePanelMask();

@@ -142,12 +142,10 @@
 
 let handles, render, selected = null;
 
-let paper = svg('svg.paper', [	
+let paper = svg('svg.paper', { 'version':'1.1', 'xmlns:xlink':'http://www.w3.org/1999/xlink' }, [	
 	svg('defs', [
 		svg('filter #blur', [
 			svg('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 4, result: 'blur' }),
-			/*svg('feTurbulence', { baseFrequency: 0.08, numOctaves: 1, seed: 1, result: 'turbulence'}),
-			svg('feDisplacementMap', { in: 'blur', in2: 'turbulence', scale: 9 })*/
 		]),
 		svg('filter #noise', [
 			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 1.75, result: 'noisy' }),
@@ -155,6 +153,12 @@ let paper = svg('svg.paper', [
 			svg('feBlend', { in: 'SourceGraphic', in2: 'noisy', mode: 'multiply', result: 'blend' }),
 			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply', result: 'blend2' }),
 			svg('feBlend', { in: 'blend2', in2: 'noisy', mode: 'multiply' }),
+		]),
+		svg('filter #dialate-subtract', [
+
+		]),
+		svg('filter #dialate-border', [
+
 		]),
 		panelMask = svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' })
 	]),
@@ -840,7 +844,7 @@ class Character extends Entity {
 
 	_updateLimb(limb) {
 		limb.element.setAttribute('d', `
-			M ${limb.pos.x} ${limb.pos.y},
+			M ${limb.pos.x} ${limb.pos.y}
 			Q ${limb.control2.x} ${limb.control2.y} ${limb.control1.x} ${limb.control1.y}
 		`);
 	}
@@ -869,7 +873,7 @@ class Character extends Entity {
 					this.anatomy.body.path.element = svg(`path #body${this.id}`),
 
 					svg(`clipPath #bodyClip${this.id}`, [
-						svg('use', { href: `#body${this.id}` })
+						svg('use', { 'xlink:href': `#body${this.id}` })
 					])
 				]),
 
@@ -880,10 +884,10 @@ class Character extends Entity {
 					this.anatomy.limbs.right_leg.element = svg('path.limb'),
 				]),
 
-				svg('use.body-border', { href: `#body${this.id}` }),
+				svg('use.body-border', { 'xlink:href': `#body${this.id}` }),
 				svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
-					svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
-					svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+					svg('use.body-shadow', { 'xlink:href': `#body${this.id}`, filter: 'url(#noise)' }),
+					svg('use.body-highlight', { 'xlink:href': `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 				]),
 			]),
 
@@ -891,18 +895,18 @@ class Character extends Entity {
 				svg('defs', [
 					svg(`circle #head${this.id}`, {r: 25}),
 					svg(`clipPath #headClip${this.id}`, [
-						svg('use', { href: `#head${this.id}` })
+						svg('use', { 'xlink:href': `#head${this.id}` })
 						// svg('circle', { r: this.anatomy.head.radius - 2 })
 					])
 				]),
 
-				svg('use.head-border', { href: `#head${this.id}`}),
+				svg('use.head-border', { 'xlink:href': `#head${this.id}`}),
 
 				svg('g', {
 					'clip-path': `url(#headClip${this.id})`
 				}, [
-					svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
-					svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+					svg('use.head-shadow', { 'xlink:href': `#head${this.id}`, filter: 'url(#noise)' }),
+					svg('use.head-highlight', { 'xlink:href': `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 
 					this.anatomy.head.eyes.element = svg('g.eyes', {
 						

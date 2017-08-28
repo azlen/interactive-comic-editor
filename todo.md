@@ -56,7 +56,12 @@
 
 [ ] ADD COMMENTS TO EVERYTHING
 
-[ ] hotkey panel
+[X] hotkey panel
+
+[ ] Allow any entity to subtract from panels
+    [ ] dialate filter
+
+[ ] Merge caption & speechbubble entities into ONE entity
 
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?

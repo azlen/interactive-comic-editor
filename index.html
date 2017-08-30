@@ -179,13 +179,14 @@
 			stroke-linecap: round;
 		}
 
-		.speechbubble .bubble, .speechbubble .tail {
+		.speechbubble .bubble-border, .speechbubble .tail-border {
 			stroke: #333333;
 			stroke-width: 4px;
 			stroke-linejoin: round;
 		}
 
-		.speechbubble .fill {
+		.speechbubble .bubble-fill, .speechbubble .tail-fill {
+			stroke: none;
 			fill: #FFFFFF;
 		}
 
@@ -204,6 +205,14 @@
 
 		.extraborders {
 			pointer-events: none;
+		}
+
+		.file-input {
+			z-index: 1000;
+			cursor: pointer;
+			height: 100%;
+			font-size: 24px;
+			width: 100%;
 		}
 
 		/* ---------------- */
@@ -237,6 +246,7 @@
 				<li>ctrl + 1: Create Panel</li>
 				<li>ctrl + 2: Create Text Entity</li>
 				<li>ctrl + 3: Create Character</li>
+				<li>ctrl + 3: Create Import Entity</li>
 				<br/>
 				<li>ctrl + q: Toggle selected masked by hovered panel</li>
 				<li>ctrl + w: Toggle selected Text Entity join</li>

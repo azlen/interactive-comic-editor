@@ -18,7 +18,7 @@
 				case Object:
 					for(let attr in l) {
 						if(attr === 'style') {
-							for(style in l[attr]) {
+							for(let style in l[attr]) {
 								e.style[style] = l[attr][style];
 							}
 						}else{
@@ -141,6 +141,9 @@
 let panelMask, disruptMask, render, extraBorders, handles;
 let selected = null;
 
+let undoStack = [];
+let redoStack = [];
+
 let paper = svg('svg.paper', [	
 	svg('defs', [
 		svg('filter #blur', [
@@ -248,6 +251,15 @@ function updateUI() {
 }
 
 function save() {
+	let data = localStorage.getItem('data');
+	if(data !== null && data !== undoStack[undoStack.length - 1]) {
+		undoStack.push(data);
+	}
+
+	localStorage.setItem('data', JSON.stringify(getSaveObject()))
+}
+
+function getSaveObject() {
 	let s = {
 		entities: []
 	};
@@ -263,6 +275,11 @@ function save() {
 		for(let opt in entity.options) {
 			savedEntity.options[opt] = entity.options[opt].value;
 		}
+		if(entity.hasOwnProperty('entities') && entity.entities.length > 0) {
+			savedEntity.entities = entity.entities.map(function(ent) {
+				return ent.id;
+			})
+		}
 		s.entities.push(savedEntity);
 	} 
 	return s;
@@ -271,14 +288,25 @@ function save() {
 function load(s) {
 	destroyAll();
 
+	let _ids = [];
+
 	for(let i in s.entities) {
 		let entity = new (entityTypes[s.entities[i].type])();
+		_ids.push(entity.id);
 		for(let opt in s.entities[i].options) {
 			entity.options[opt].value = s.entities[i].options[opt];
 		}
 		s.entities[i].handles.forEach(function(handle, j) {
 			entity.handles[j].setPosition(handle.x, handle.y, true);
 		});
+	}
+
+	for(let i in s.entities) {
+		if(s.entities[i].hasOwnProperty('entities')) {
+			s.entities[i].entities.forEach(function(ent_id) {
+				entities[_ids[i]].toggleEntity(entities[ent_id]);
+			})
+		}
 	}
 }
 
@@ -310,6 +338,11 @@ UI._Element = class {
 
 	_value2html() {
 		this.element.value = this.value;
+	}
+
+	_changed() {
+		this._html2value();
+		save();
 	}
 
 	toggleWith(uiElement, value) {
@@ -351,7 +384,7 @@ UI.Input = class extends UI._Element {
 	_render(initialValue) {
 		this.element = h('input', { value: (initialValue || '') });	
 		this.element.addEventListener('input', this._html2value.bind(this));
-		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
@@ -359,7 +392,7 @@ UI.Textarea = class extends UI._Element {
 	_render(initialValue) {
 		this.element = h('textarea', { value: (initialValue || '') });
 		this.element.addEventListener('input', this._html2value.bind(this));
-		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
@@ -375,14 +408,14 @@ UI.Bool = class extends UI._Element {
 	_render(initialValue) {
 		this.element = h('input', { type: 'checkbox' });
 		this.element.checked = initialValue || false;
-		this.element.addEventListener('click', this._html2value.bind(this));
+		this.element.addEventListener('click', this._changed.bind(this));
 	}
 }
 
 UI.Number = class extends UI._Element {
 	_render() {
 		this.element = h('input', { type: 'number' });
-		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('change', this._changed.bind(this));
 		this.element.addEventListener('input', this._html2value.bind(this));
 	}
 }
@@ -392,14 +425,39 @@ UI.Select = class extends UI._Element {
 		this.element = h('select', options.map(function(option) {
 			return h('option', { value: option }, option);
 		}));
-		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
 UI.Slider = class extends UI._Element {
 	_render(initialValue, boundsArray) {
 		this.element = h('input', { type: 'range' });
-		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('change', this._changed.bind(this));
+	}
+}
+
+UI.File = class extends UI._Element {
+	_html2value() {
+		if(this.input.files[0] !== undefined) {
+			this.value = this.input.files[0].name;
+		}
+		this._value2html();
+	}
+
+	_value2html() {
+		this.text.textContent = this.value;
+	}
+
+	_render() {
+		this.element = h('span', [
+			this.text = h('span', { style: { 'font-weight': 400 } }),
+			this.button = h('button', 'choose file'),
+			this.input = h('input.hidden', { type: 'file' }),
+		]);
+		this.button.addEventListener('click', function() {
+			this.input.click();
+		}.bind(this))
+		this.input.addEventListener('change', this._changed.bind(this));
 	}
 }
 
@@ -573,6 +631,7 @@ class Handle {
 			}.bind(this),
 			mouseup: function() {
 				this.setPosition(this.x, this.y);
+				save();
 			}.bind(this)
 		});
 
@@ -615,6 +674,8 @@ class Entity {
 
 		this._makeSelectable();
 		this.select();
+
+		save();
 	}
 
 	_generateID() {
@@ -680,8 +741,7 @@ class Entity {
 
 	_updatePos() {
 		let pos = this._convertPointToLocalCoords(this.pos);
-		this.element.setAttribute('x', pos.x - this.scale.x);
-		this.element.setAttribute('y', pos.y - this.scale.y);
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
 	_convertPointToLocalCoords(p) {
@@ -789,6 +849,8 @@ class Entity {
 		this.element.parentElement.removeChild(this.element);
 		this.destroyHandles();
 		delete entities[this.id];
+
+		save();
 	}
 }
 
@@ -880,8 +942,6 @@ class Character extends Entity {
 
 		this._initHeadHandles();
 		this._initBodyHandles();
-
-		this._applyTransformations();
 	}
 
 	_initAnatomy() {
@@ -1037,15 +1097,6 @@ class Character extends Entity {
 		for(let limb in this.anatomy.limbs) {
 			this._updateLimb(this.anatomy.limbs[limb]);
 		}
-	}
-
-	_updatePos() {
-		this._applyTransformations();
-	}
-
-	_applyTransformations() {
-		let pos = this._convertPointToLocalCoords(this.pos);
-		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
 	_render() {
@@ -1287,9 +1338,11 @@ class TextEntity extends Entity {
 					svg('use', { href: `#tail${this.id}`})
 				])
 			]),
-			svg('use.bubble', { href: `#bubble${this.id}`}),
-			svg('use.tail', { href: `#tail${this.id}`}),
-			svg('rect.fill', { 'clip-path': `url(#speechbubble${this.id})`, x: -1000, y: -1000, width: 2000, height: 2000 }),
+			svg('use.bubble-border', { href: `#bubble${this.id}`}),
+			svg('use.tail-border', { href: `#tail${this.id}`}),
+			svg('use.bubble-fill', { href: `#bubble${this.id}`}),
+			svg('use.tail-fill', { href: `#tail${this.id}`}),
+			
 		
 			this.textBounds = svg('foreignObject', [
 				this.text = h('p.text')
@@ -1300,13 +1353,32 @@ class TextEntity extends Entity {
 	}
 }
 
-let entityTypes = {Panel, Character, TextEntity};
+class ImportEntity extends Entity {
+	constructor() {
+		super();
 
-hotkeys('ctrl+1, ctrl+2, ctrl+3', function(event, handler) {
+		this.pos._initRotationalHandle(0);
+
+		this.addOption(new UI.File('image'));
+	}
+
+	_render() {
+		this.element = svg('g',	[
+			svg('rect.no-pointer-events', { width: 100, height: 100 }),
+		]);
+
+		render.appendChild(this.element);
+	}
+}
+
+let entityTypes = {Panel, Character, TextEntity, ImportEntity};
+
+hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+1': new Panel(); break;
 		case 'ctrl+2': new TextEntity(); break;
 		case 'ctrl+3': new Character(); break;
+		case 'ctrl+4': new ImportEntity(); break;
 	}
 });
 
@@ -1330,9 +1402,10 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 			}
 			break;
 		case 'ctrl+w':
-			if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
+			/*if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
 				selected.joinTextEntity(hoveredEntity);
-			}
+			}*/
+			console.log(mouse.target);
 			break;
 
 	}
@@ -1349,7 +1422,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 hotkeys('ctrl+shift+m', function(event, handler) {
 	if(confirm('Are you sure you want to clear the current save?')) {
 		destroyAll();
-		localStorage.removeItem('data');
+		save();
 	}
 });
 
@@ -1363,14 +1436,14 @@ paper.addEventListener('mousedown', function(e) {
 	}
 });
 
-setInterval(function() {
+/*setInterval(function() {
 	localStorage.setItem('data', JSON.stringify(save()));
-}, 1000);
+}, 1000);*/
 
 (function(){
 	let data = localStorage.getItem('data');
-	console.log(data);
 	if(data !== null) {
+		undoStack.push(data);
 		load(JSON.parse(data));
 	}
 })(); // load current save

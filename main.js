@@ -143,6 +143,7 @@ let selected = null;
 
 let undoStack = [];
 let redoStack = [];
+let clipBoard = null;
 
 let paper = svg('svg.paper', [	
 	svg('defs', [
@@ -251,12 +252,16 @@ function updateUI() {
 }
 
 function save() {
-	let data = localStorage.getItem('data');
-	if(data !== null && data !== undoStack[undoStack.length - 1]) {
-		undoStack.push(data);
-	}
+	let data = JSON.stringify(getSaveObject());
+	undoStack.push(data);
+	redoStack = [];
 
-	localStorage.setItem('data', JSON.stringify(getSaveObject()))
+	localStorage.setItem('data', data);
+}
+
+function saveToFileSystem() {
+	var blob = new Blob([JSON.stringify(getSaveObject())], {type: "text/plain;charset=utf-8"});
+	saveAs(blob, `COMIX_${new Date() * 1}.json`);
 }
 
 function getSaveObject() {
@@ -265,24 +270,28 @@ function getSaveObject() {
 	};
 	for(let key in entities) {
 		let entity = entities[key];
-		let savedEntity = {
-			type: entity.constructor.name,
-			options: {},
-			handles: entity.handles.map(function(handle) {
-				return {x: handle.x, y: handle.y};
-			})
-		};
-		for(let opt in entity.options) {
-			savedEntity.options[opt] = entity.options[opt].value;
-		}
-		if(entity.hasOwnProperty('entities') && entity.entities.length > 0) {
-			savedEntity.entities = entity.entities.map(function(ent) {
-				return ent.id;
-			})
-		}
-		s.entities.push(savedEntity);
+		s.entities.push(getSavedEntityObject(entity));
 	} 
 	return s;
+}
+
+function getSavedEntityObject(entity) {
+	let savedEntity = {
+		type: entity.constructor.name,
+		options: {},
+		handles: entity.handles.map(function(handle) {
+			return {x: handle.x, y: handle.y};
+		})
+	};
+	for(let opt in entity.options) {
+		savedEntity.options[opt] = entity.options[opt].value;
+	}
+	if(entity.hasOwnProperty('entities') && entity.entities.length > 0) {
+		savedEntity.entities = entity.entities.map(function(ent) {
+			return ent.id;
+		})
+	}
+	return savedEntity;
 }
 
 function load(s) {
@@ -291,14 +300,8 @@ function load(s) {
 	let _ids = [];
 
 	for(let i in s.entities) {
-		let entity = new (entityTypes[s.entities[i].type])();
+		let entity = createEntityFromSaveObject(s.entities[i]);
 		_ids.push(entity.id);
-		for(let opt in s.entities[i].options) {
-			entity.options[opt].value = s.entities[i].options[opt];
-		}
-		s.entities[i].handles.forEach(function(handle, j) {
-			entity.handles[j].setPosition(handle.x, handle.y, true);
-		});
 	}
 
 	for(let i in s.entities) {
@@ -308,6 +311,67 @@ function load(s) {
 			})
 		}
 	}
+}
+
+function createEntityFromSaveObject(s, addChildren) {
+	let entity = new (entityTypes[s.type])();
+	
+	for(let opt in s.options) {
+		entity.options[opt].value = s.options[opt];
+	}
+	s.handles.forEach(function(handle, j) {
+		entity.handles[j].setPosition(handle.x, handle.y, true);
+	});
+
+	if(addChildren && s.hasOwnProperty('entities')) {
+		s.entities.forEach(function(ent_id) {
+			entity.toggleEntity(entities[ent_id]);
+		})
+	}
+
+	return entity;
+}
+
+function undo() {
+	if(undoStack.length <= 1) return;
+	let data = undoStack.pop();
+	console.log('UNDO: ', data)
+	if(data !== undefined) {
+		redoStack.push(data);
+		load(JSON.parse(undoStack[undoStack.length - 1]));
+
+		localStorage.setItem('data', undoStack[undoStack.length - 1]);
+	}
+}
+
+function redo() {
+	let data = redoStack.pop();
+	console.log('REDO: ', data);
+	if(data !== undefined) {
+		undoStack.push(data);
+		load(JSON.parse(data));
+
+		localStorage.setItem('data', data);
+	}
+}
+
+function cut() {
+	copy();
+	selected.destroy();
+
+	save();
+}
+
+function copy() {
+	clipBoard = getSavedEntityObject(selected);
+}
+
+function paste() {
+	if(clipBoard === null) return;
+	let entity = createEntityFromSaveObject(clipBoard, true);
+	entity.pos.setPosition(mouse.x, mouse.y, true);
+
+	save();
 }
 
 function destroyAll() {
@@ -674,8 +738,6 @@ class Entity {
 
 		this._makeSelectable();
 		this.select();
-
-		save();
 	}
 
 	_generateID() {
@@ -849,8 +911,6 @@ class Entity {
 		this.element.parentElement.removeChild(this.element);
 		this.destroyHandles();
 		delete entities[this.id];
-
-		save();
 	}
 }
 
@@ -1380,6 +1440,7 @@ hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 		case 'ctrl+3': new Character(); break;
 		case 'ctrl+4': new ImportEntity(); break;
 	}
+	save();
 });
 
 hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
@@ -1400,6 +1461,7 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 			if(mouse.target.classList.contains('panel') && selected != null) {
 				hoveredEntity.toggleEntity(selected);
 			}
+			save();
 			break;
 		case 'ctrl+w':
 			/*if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
@@ -1417,6 +1479,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 		selected = null;
 	}
 	updateUI();
+	save();
 });
 
 hotkeys('ctrl+shift+m', function(event, handler) {
@@ -1425,6 +1488,26 @@ hotkeys('ctrl+shift+m', function(event, handler) {
 		save();
 	}
 });
+
+hotkeys('cmd+z, cmd+shift+z', function(event, handler) {
+	switch(handler.key) {
+		case 'cmd+z': undo(); break;
+		case 'cmd+shift+z': redo(); break;
+	}
+});
+
+hotkeys('cmd+x, cmd+c, cmd+v', function(event, handler) {
+	switch(handler.key) {
+		case 'cmd+x': cut(); break;
+		case 'cmd+c': copy(); break;
+		case 'cmd+v': paste(); break;
+	}
+});
+
+hotkeys('cmd+s', function(event, handler) {
+	event.preventDefault();
+	saveToFileSystem();
+})
 
 paper.addEventListener('mousedown', function(e) {
 	if(e.target === paper && selected != null) {

@@ -2,95 +2,54 @@
 
 # TODO
 
-[X] Create git
-[ ] Create github repo?
-[X] Allow constraints on dragging, and be able to apply constraints mid-drag
-    - types of constraints: 
-        + grid
-        + axis (not just x and y but along any given line/direction for example to keep aspect ratio)
-        + block off certain areas (e.g., not allow position of scale to be less than position of pos)
-[X] Clean code up, remove as unneccesary
-[X] applyCallback should be able to take multiple callbacks as arguments. It should just concat it's argument list with callback list.
-[X] Handles should not only have a callback but also a function to reposition itself in response to other handles changing up the values
-    - updateHandles could be a part of every callback?
-    - updateHandles calls the update function for every handle?
+## General
 
-[X] Create rotation handle, this handle could have its own handle for rotation that appears when the mouse is close in distance (2x où 3x the radius)
-[X] Mask entities in panel
-[X] Select only 1 entity at once, hide handles
-[X] Delete selected entity
-[ ] Select multiple entities
-[ ] Move multiple selected entities
-[ ] Delete multiple selected entities
+[X] ~~Tidy up TODO list~~
+[?] ADD COMMENTS TO EVERYTHING
+[ ] Support older browsers
+[ ] Design actual pages on paper
+[ ] Export HTML
+[ ] Export JS
+[ ] Save to filesystem
+[?] Inline Styles ???
 
-[ ] Locking entities
+## Entities
+[-] Select multiple entities
+[-] Move multiple selected entities
+[-] Delete multiple selected entities
+[?] Locking entities
 
-[X] FONT!
+[-] Allow entity to be masked by MULTIPLE panels
+[-] if masked by multiple panels, highlight panels when entity selected
 
-[X] Give each entity ID
-[X] Store entities in array/object
+[-] Allow any entity to subtract from panels
+    [X] dialate filter
+    [-] fix border mod?
 
-[X] Make it so that handles can be relative to relative handles!
-
-[X] Create Panel Entity
-[X] Create Caption Entity
-[X] Create SpeechBubble Entity
-    [ ] Height based off `<p>`?
-[X] Create Person/Reader Entity
-    [X] Torso
-        [X] Shadow
-    [X] Head
-        [X] Shadow
-        [X] use `<use>` for head shape (mask & light & head)! 
-    [X] Eyes
-        [X] Fix masking for eyes
-    [X] Limbs
-    [X] Grainy shadows
-    [ ] Scaling
-    [X] Create better default position for character (XD)
-    [ ] Shirt Logo
-    [ ] Mouth
-
-[ ] Allow entity to be masked by MULTIPLE panels
-[ ] if masked by multiple panels, highlight panels when entity selected
-
-[X] Mass panel mask (captions subtract from panels, panels could subtract from panels? etc. basically allow shape of panels to change. This is kinda complicated but cool :P you PROBABLY won't regret it. It will also probably fix the problem of entities overlapping the inner border [or just create a worse problem of overlapping the whole border... oops.])
-
-[ ] ADD COMMENTS TO EVERYTHING
-
-[X] hotkey panel
-
-[ ] use xlink:href (and href) on `use` to support older browsers (and some modern ones! looking at you Safari)
-[ ] basically work on making everything work in as many browsers as possible !
-
-[ ] Allow any entity to subtract from panels
-    [ ] dialate filter
-
-[X] Merge caption & speechbubble entities into ONE entity
-[ ] Use some sort of markdown for bold and italics in entity text
+## TextEntity
+[?] TextEntity Height based off `<p>`?
+[ ] Better padding / text-centering for TextEntity
+[ ] Some sort of Markdown format for TextEntity
 [ ] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
-[ ] Add new shapes for speech bubbles
+[-] Add new shapes / shape modifications for speech bubbles
 [ ] Tail curving
-[X] SHIFT constraints
 [ ] Join two speech bubbles, second speech bubble forms connector
 
-[X] Inspector UI elements toggle hiding/showing other UI elements
+## Character
+[!] Scaling Character
+[ ] Shirt Logo for Character
+[?] Mouth for Character
+[-] Hats & Hair for Character
 
-[ ] create border around page size
-    - HOW WILL RESCALE MOBILEELELE?
+## ImportEntity
+[ ] Load image from directory
+[ ] Scaling (locked to aspect ratio) + Rotation
 
-- HOW WILL HANDLE MULTIPLE FONT SIZESS SDSAS?>D?ASF>??
+## Artboards
+[ ] Create Artboard Entity
+[-] Place Entities in Artboard automatically?
+[?] Link copy (for secondary artboards?)
 
+## Pages
 [ ] create multiple pages, switch between
-    
-[X] Create keyboard shortcuts to create each entity rather than spending time developing user interface
-
-[X] Create inspector, certain entities may have textual/select options better fit for an inspector (although textual options could be through contenteditable, I thnk it would be better just to put it in the inspector)
-
-[X] Create UI showing layers in current panel? possibly using keyboard shortcuts instead of UI actions to move and select different objects. ~~Shows layers in panel which contains mouse.~~ Shows layers in panel with currently selected object
-
-[ ] Saving / Loading
-
-[X] Zoom in/out
-[X] Pan w/ cmd+drag?
 

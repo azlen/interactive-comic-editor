@@ -23,6 +23,8 @@
 [ ] Move multiple selected entities
 [ ] Delete multiple selected entities
 
+[ ] Locking entities
+
 [X] FONT!
 
 [X] Give each entity ID
@@ -31,7 +33,7 @@
 [X] Make it so that handles can be relative to relative handles!
 
 [X] Create Panel Entity
-[ ] Create Caption Entity
+[X] Create Caption Entity
 [X] Create SpeechBubble Entity
     [ ] Height based off `<p>`?
 [X] Create Person/Reader Entity
@@ -58,10 +60,21 @@
 
 [X] hotkey panel
 
+[ ] use xlink:href (and href) on `use` to support older browsers (and some modern ones! looking at you Safari)
+[ ] basically work on making everything work in as many browsers as possible !
+
 [ ] Allow any entity to subtract from panels
     [ ] dialate filter
 
-[ ] Merge caption & speechbubble entities into ONE entity
+[X] Merge caption & speechbubble entities into ONE entity
+[ ] Use some sort of markdown for bold and italics in entity text
+[ ] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
+[ ] Add new shapes for speech bubbles
+[ ] Tail curving
+[X] SHIFT constraints
+[ ] Join two speech bubbles, second speech bubble forms connector
+
+[X] Inspector UI elements toggle hiding/showing other UI elements
 
 [ ] create border around page size
     - HOW WILL RESCALE MOBILEELELE?

@@ -145,19 +145,15 @@
 			display: none;
 		}
 
-		.hidden {
-			display: none;
-		}
-
 		.character .headgroup .head-border  {
 			stroke: #333333;
 			stroke-width: 4px; /* double stroke width because of clip */
 		}
 		.character .headgroup .head-shadow {
-			fill: #CFB871;
+			fill: #E59B27;
 		}
 		.character .headgroup .head-highlight {
-			fill: #FFE492;
+			fill: #FFE58C;
 		}
 
 		.character .headgroup .eyes ellipse {
@@ -170,10 +166,10 @@
 			stroke-linejoin: round;
 		}
 		.character .bodygroup .body-shadow {
-			fill: #0099FF;
+			fill: #751EFF;
 		}
 		.character .bodygroup .body-highlight {
-			fill: #0099FF;
+			fill: #AE12F2;
 		}
 
 		.character .bodygroup .limbs .limb {
@@ -183,7 +179,7 @@
 			stroke-linecap: round;
 		}
 
-		.speechbubble .bubble, .speechbubble .stem {
+		.speechbubble .bubble, .speechbubble .tail {
 			stroke: #333333;
 			stroke-width: 4px;
 			stroke-linejoin: round;
@@ -209,6 +205,19 @@
 		.extraborders {
 			pointer-events: none;
 		}
+
+		/* ---------------- */
+		/*    IMPORTANTS ?
+		/* ---------------- */
+
+		.hidden {
+			display: none;
+		}
+
+		.disrupt-mask * {
+			stroke: black;
+			stroke-linejoin: round;
+		}
 	</style>
 
 	<script src="lib/hotkeys/hotkeys.js"></script>
@@ -226,17 +235,19 @@
 		<div class="hotkey-description">
 			<ul>
 				<li>ctrl + 1: Create Panel</li>
-				<li>ctrl + 2: Create Caption</li>
+				<li>ctrl + 2: Create Text Entity</li>
 				<li>ctrl + 3: Create Character</li>
-				<li>ctrl + 3: Create Speech Bubble</li>
 				<br/>
-				<li>ctrl + q: Move selected to back</li>
-				<li>ctrl + w: Move selected back 1 layer</li>
-				<li>ctrl + e: Move selected forward 1 layer</li>
-				<li>ctrl + r: Move selected to front</li>
+				<li>ctrl + q: Toggle selected masked by hovered panel</li>
+				<li>ctrl + w: Toggle selected Text Entity join</li>
 				<br/>
-				<li>ctrl + a: Toggle selected masked by hovered panel</li>
+				<li>ctrl + a: Move selected to back</li>
+				<li>ctrl + s: Move selected back 1 layer</li>
+				<li>ctrl + d: Move selected forward 1 layer</li>
+				<li>ctrl + f: Move selected to front</li>
+				<br/>
 				<li>ctrl + shift + x: Delete selected</li>
+				<li>ctrl + shift + x: Clear current save</li>
 			</ul>
 		</div>
 	</div>

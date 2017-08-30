@@ -1,3 +1,5 @@
+"use strict";
+
 (function() {
 	function _generateElement(args, el) {
 		let e = null;
@@ -14,7 +16,7 @@
 					l.forEach(item);
 					break;
 				case Object:
-					for(attr in l) {
+					for(let attr in l) {
 						if(attr === 'style') {
 							for(style in l[attr]) {
 								e.style[style] = l[attr][style];
@@ -104,27 +106,12 @@
 })(); // draggable, mouse
 
 (function() {
-	function _globalPosition(point) {
-		return {
-			x: point.x + (!!point.origin ? point.origin.x : 0),
-			y: point.y + (!!point.origin ? point.origin.y : 0)
-		}
-	}
-
 	window.direction = function(p1, p2) {
-		// let p1_G = _globalPosition(p1);
-		// let p2_G = _globalPosition(p2);
-		let p1_G = p1;
-		let p2_G = p2;
-		return Math.atan2(p2_G.y - p1_G.y, p2_G.x - p1_G.x);
+		return Math.atan2(p2.y - p1.y, p2.x - p1.x);
 	}
 
 	window.distance = function(p1, p2) {
-		// let p1_G = _globalPosition(p1);
-		// let p2_G = _globalPosition(p2);
-		let p1_G = p1;
-		let p2_G = p2;
-		return Math.sqrt((p1_G.x-p2_G.x)*(p1_G.x-p2_G.x) + (p1_G.y-p2_G.y)*(p1_G.y-p2_G.y));
+		return Math.sqrt((p1.x-p2.x)*(p1.x-p2.x) + (p1.y-p2.y)*(p1.y-p2.y));
 	}
 
 	window.radToDeg = function(rad) {
@@ -136,13 +123,25 @@
 	var count = 0;
 
 	window.id = function() {
-		return (count++).toString(36);
+		return count++;
 	}
 })(); // id
 
-let handles, render, selected = null;
+(function() {
+	window.traverseLeafElements = function(element, func) {
+	    let child = element.firstElementChild;
+	    if(child === null) func(element)
+	    while (child) {
+	        traverseLeafElements(child, func);
+	        child = child.nextElementSibling;
+	    }
+	}
+})(); // traverseLeafElements
 
-let paper = svg('svg.paper', { 'version':'1.1', 'xmlns:xlink':'http://www.w3.org/1999/xlink' }, [	
+let panelMask, disruptMask, render, extraBorders, handles;
+let selected = null;
+
+let paper = svg('svg.paper', [	
 	svg('defs', [
 		svg('filter #blur', [
 			svg('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 4, result: 'blur' }),
@@ -154,14 +153,25 @@ let paper = svg('svg.paper', { 'version':'1.1', 'xmlns:xlink':'http://www.w3.org
 			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply', result: 'blend2' }),
 			svg('feBlend', { in: 'blend2', in2: 'noisy', mode: 'multiply' }),
 		]),
-		svg('filter #dialate-subtract', [
-
+		svg('filter #dilate-subtract', [
+			svg('feFlood', { floodColor: 'black', result: 'floodBlack' }),
+			svg('feMorphology', { in: 'SourceGraphic', operator: 'dilate', radius: 12.5, result: 'dilated' }),
+			svg('feComposite', { in: 'floodBlack', in2: 'dilated', operator: 'in', result: 'subtraction' }),
+			svg('feComposite', { in: 'subtraction', in2: 'SourceGraphic', operator: 'xor' })
 		]),
-		svg('filter #dialate-border', [
-
+		svg('filter #dilate-border', [
+			svg('feFlood', { floodColor: '#333333', result: 'floodBlack' }),
+			svg('feMorphology', { in: 'SourceGraphic', operator: 'dilate', radius: 12.5, result: 'dilated' }),
+			svg('feMorphology', { in: 'dialated', operator: 'dilate', radius: 2, result: 'dilated2' }),
+			svg('feComposite', { in: 'floodBlack', in2: 'dilated2', operator: 'in'/*, result: 'subtraction' */}),
+			svg('feComposite', { in: 'subtraction', in2: 'SourceGraphic', operator: 'xor' })
 		]),
-		panelMask = svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' })
+		svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' }, [
+			panelMask = svg('g'),
+			disruptMask = svg('g')
+		]),
 	]),
+	
 	render = svg('g.render'),
 	extraBorders = svg('g.extraborders', { mask: 'url(#panelMask)' }),
 	handles = svg('g.handles'),
@@ -169,7 +179,7 @@ let paper = svg('svg.paper', { 'version':'1.1', 'xmlns:xlink':'http://www.w3.org
 
 document.body.appendChild(paper);
 
-var viewBox = {
+let viewBox = {
 	x: 0, y: 0,
 	scale: 1,
 }
@@ -213,10 +223,8 @@ function updateInspector() {
 	// don't add if nothing selected
 	if(selected === null) return;
 	// add items to inspector
-	for(item in selected.options) {
-		var el = h('.item', `${item}: `, selected.options[item].element);
-		
-		inspector.appendChild(el);
+	for(let item in selected.options) {		
+		inspector.appendChild(selected.options[item].inspector_element);
 	}
 }
 
@@ -241,21 +249,74 @@ function updateUI() {
 
 function save() {
 	let s = {
-		entities: entities.map(function(entity) {})
+		entities: []
 	};
+	for(let key in entities) {
+		let entity = entities[key];
+		let savedEntity = {
+			type: entity.constructor.name,
+			options: {},
+			handles: entity.handles.map(function(handle) {
+				return {x: handle.x, y: handle.y};
+			})
+		};
+		for(let opt in entity.options) {
+			savedEntity.options[opt] = entity.options[opt].value;
+		}
+		s.entities.push(savedEntity);
+	} 
 	return s;
+}
+
+function load(s) {
+	destroyAll();
+
+	for(let i in s.entities) {
+		let entity = new (entityTypes[s.entities[i].type])();
+		for(let opt in s.entities[i].options) {
+			entity.options[opt].value = s.entities[i].options[opt];
+		}
+		s.entities[i].handles.forEach(function(handle, j) {
+			entity.handles[j].setPosition(handle.x, handle.y, true);
+		});
+	}
+}
+
+function destroyAll() {
+	for(let key in entities) {
+		entities[key].destroy();
+	}
+	entities = {};
 }
 
 var UI = {};
 
 UI._Element = class {
-	constructor() {
-		this._render();
+	constructor(name) {
+		this.name = name;
+
+		this._render.apply(this, [].slice.call(arguments, 1));
+		this.inspector_element =  h('.item', `${this.name}: `, this.element);
 
 		this.callbacks = [];
 		this._value;
 
-		this._updateValue();
+		this._html2value();
+	}
+
+	_html2value() {
+		this.value = this.element.value;
+	}
+
+	_value2html() {
+		this.element.value = this.value;
+	}
+
+	toggleWith(uiElement, value) {
+		uiElement.applyCallback(function(newValue) {
+			if(newValue === (value || true)) this.inspector_element.classList.remove('hidden')
+			else this.inspector_element.classList.add('hidden');
+		}.bind(this));
 	}
 
 	applyCallback() {
@@ -276,6 +337,7 @@ UI._Element = class {
 		if(this._value != newValue) {
 			this._value = newValue;
 			this.activateCallbacks(this._value);
+			this._value2html(this._value);
 		}
 		return this._value;
 	}
@@ -286,50 +348,58 @@ UI._Element = class {
 }
 
 UI.Input = class extends UI._Element {
-	_updateValue() {
-		setTimeout(function() {
-			this.value = this.element.value;
-		}.bind(this), 0);
-	}
-
-	_render() {
-		this.element = h('input');	
-		this.element.addEventListener('keyup', this._updateValue.bind(this));
+	_render(initialValue) {
+		this.element = h('input', { value: (initialValue || '') });	
+		this.element.addEventListener('input', this._html2value.bind(this));
+		this.element.addEventListener('change', this._html2value.bind(this));
 	}
 }
 
 UI.Textarea = class extends UI._Element {
-	_updateValue() {
-		this.value = this.element.value;
-	}
-
-	_render() {
-		this.element = h('textarea');
-		this.element.addEventListener('input', this._updateValue.bind(this));
-		this.element.addEventListener('change', this._updateValue.bind(this));
+	_render(initialValue) {
+		this.element = h('textarea', { value: (initialValue || '') });
+		this.element.addEventListener('input', this._html2value.bind(this));
+		this.element.addEventListener('change', this._html2value.bind(this));
 	}
 }
 
 UI.Bool = class extends UI._Element {
-	_updateValue() {
-		this.value = this.element.value;
+	_html2value() {
+		this.value = this.element.checked;
 	}
 
-	_render() {
+	_value2html() {
+		this.element.checked = this.value;
+	}
+
+	_render(initialValue) {
 		this.element = h('input', { type: 'checkbox' });
-		this.element.addEventListener('click', this._updateValue.bind(this));
+		this.element.checked = initialValue || false;
+		this.element.addEventListener('click', this._html2value.bind(this));
 	}
 }
 
 UI.Number = class extends UI._Element {
-	_updateValue() {
-		this.value = this.element.value;
-	}
-
 	_render() {
 		this.element = h('input', { type: 'number' });
-		this.element.addEventListener('change', this._updateValue.bind(this));
-		this.element.addEventListener('keyup', this._updateValue.bind(this));
+		this.element.addEventListener('change', this._html2value.bind(this));
+		this.element.addEventListener('input', this._html2value.bind(this));
+	}
+}
+
+UI.Select = class extends UI._Element {
+	_render(options) {
+		this.element = h('select', options.map(function(option) {
+			return h('option', { value: option }, option);
+		}));
+		this.element.addEventListener('change', this._html2value.bind(this));
+	}
+}
+
+UI.Slider = class extends UI._Element {
+	_render(initialValue, boundsArray) {
+		this.element = h('input', { type: 'range' });
+		this.element.addEventListener('change', this._html2value.bind(this));
 	}
 }
 
@@ -371,6 +441,8 @@ class Handle {
 		this.callbacks = [];
 		this.constraints = [];
 
+		this.disabled = false;
+
 		this._render();
 	}
 
@@ -383,6 +455,13 @@ class Handle {
 			this.move(0, 0, true);
 		}.bind(this));
 		this.move(0, 0, true);
+	}
+
+	relativeTo(handle) {
+		return {
+			x: (this.x + this.origin.x) - (handle.x + handle.origin.x),
+			y: (this.y + this.origin.y) - (handle.y + handle.origin.y)
+		}
 	}
 
 	applyCallback() {
@@ -411,6 +490,11 @@ class Handle {
 		this._y = y;
 
 		let newPos = {x: this._x, y: this._y};
+
+		if(hotkeys.isPressed(16)) {
+			newPos = constraints.snapToGrid.apply(null, [12.5, newPos]);
+		} // THIS IS PROBABLY STUPID, APPLIED TO ALL HANDLES! (including rotation OMG)
+
 		this.constraints.forEach(function(fn) {
 			newPos = fn(newPos);
 		});
@@ -442,6 +526,18 @@ class Handle {
 	hide() {
 		this.element.classList.add('hidden');
 		if(this.handle) this.handle.hide();
+	}
+
+	disable() {
+		this.disabled = true;
+		if(this.handle) this.handle.disable();
+		this.hide();
+	}
+
+	enable() {
+		this.disabled = false;
+		if(this.handle) this.handle.enable();
+		this.show();
 	}
 
 	_initRotationalHandle(rotation) {
@@ -506,13 +602,14 @@ class Entity {
 
 		this.handles = [];
 
-		this.options = {
-			class: new UI.Input()
-		};
+		this.options = {};
 
 		this._render();
+		this.element.setAttribute('id', `entity${this.id}`);
 		this.element.setAttribute('data-id', this.id);
 		this.element.setAttribute('data-type', this.constructor.name);
+
+		this._initDisrupt();
 
 		this._initPos();
 
@@ -525,10 +622,10 @@ class Entity {
 		entities[this.id] = this;
 	}
 
-	addOption(name, type) {
-		this.options[name] = type;
+	addOption(uiElement) {
+		this.options[uiElement.name] = uiElement;
 		updateUI();
-		return type;
+		return uiElement;
 	}
 
 	addHandle(handle) {
@@ -594,6 +691,92 @@ class Entity {
 			y: (matrix.b * p.x) + (matrix.d * p.y) - matrix.f - viewBox.y
 		}
 	}
+
+	moveToBackLayer() {
+		this.element.parentElement.insertBefore(this.element, this.element.parentElement.firstElementChild);
+		// this.maskElement.parentElement.insertBefore(this.maskElement, this.maskElement.parentElement.firstElementChild);
+	}
+
+	moveBackLayer() {
+		if(this.element.previousElementSibling) {
+			this.element.parentElement.insertBefore(this.element, this.element.previousElementSibling);
+			// this.maskElement.parentElement.insertBefore(this.maskElement, this.maskElement.previousElementSibling);
+		}
+	}
+
+	moveForwardLayer() {
+		if(this.element.nextElementSibling) {
+			this.element.parentElement.insertBefore(this.element.nextElementSibling, this.element);
+			// this.maskElement.parentElement.insertBefore(this.maskElement.nextElementSibling, this.maskElement);
+		}
+	}
+
+	moveToFrontLayer() {
+		this.element.parentElement.appendChild(this.element);
+		// this.maskElement.parentElement.appendChild(this.maskElement);
+	}
+
+	_initDisrupt() {
+		/* this.addOption(new UI.Bool('disruptPanel', false));
+		this.options.disruptPanel.applyCallback(this._updateDisruptPanel.bind(this));
+
+		this.addOption(new UI.Slider('disruptAmount'));
+		this.options.disruptAmount.toggleWith(this.options.disruptPanel);
+
+		this.maskElement = svg(`g.disrupt-mask`);
+		disruptMask.appendChild(this.maskElement);
+
+		this.extraBorder = svg('g');
+		extraBorders.appendChild(this.extraBorder);
+
+		traverseLeafElements(this.element, function(element) {
+			if(element.tagName !== 'use' && !element.classList.contains('fill')) {
+				if(element.getAttribute('id') === null) {
+					element.setAttribute('id', id());
+				}
+				let bbox = element.getBoundingClientRect();
+				let originalStrokeWidth = Number(getComputedStyle(element)['stroke-width'].slice(0, -2));
+				let maskBorderID = id();
+				let maskFillID = id();
+
+				this.maskElement.insertBefore( svg(`use #${maskBorderID}`, {
+					href: `#${element.getAttribute('id')}`,
+					transform: `translate(${bbox.left}, ${bbox.top})`,
+					stroke: 'black',
+					fill: 'none',
+					'stroke-width': originalStrokeWidth + 25
+				}), this.maskElement.firstElementChild);
+				this.maskElement.appendChild( svg(`use #${maskFillID}`, {
+					href: `#${element.getAttribute('id')}`,
+					transform: `translate(${bbox.left}, ${bbox.top})`,
+					stroke: 'none',
+					fill: 'white'
+				}) );
+
+				this.extraBorder.insertBefore( svg(`use`, {
+					href: `#${maskBorderID}`,
+					'stroke-width': originalStrokeWidth + 29
+				}), this.extraBorder.firstElementChild );
+				this.extraBorder.appendChild( svg(`use`, { href: `#${maskFillID}` }) );
+			}
+		}.bind(this));*/
+
+		
+
+		/*
+
+		this.extraBorder = svg('use.disrupt-extra-border', {
+			href: `#entity${this.id}`,
+			// filter: 'url(#dilate-border)',
+			'stroke': '#333333',
+			'stroke-width': 16.5
+		});
+		*/
+	}
+
+	_updateDisruptPanel() {
+
+	}
 	
 	_render() {
 		// Override
@@ -605,6 +788,7 @@ class Entity {
 		}
 		this.element.parentElement.removeChild(this.element);
 		this.destroyHandles();
+		delete entities[this.id];
 	}
 }
 
@@ -873,7 +1057,7 @@ class Character extends Entity {
 					this.anatomy.body.path.element = svg(`path #body${this.id}`),
 
 					svg(`clipPath #bodyClip${this.id}`, [
-						svg('use', { 'xlink:href': `#body${this.id}` })
+						svg('use', { href: `#body${this.id}` })
 					])
 				]),
 
@@ -884,10 +1068,10 @@ class Character extends Entity {
 					this.anatomy.limbs.right_leg.element = svg('path.limb'),
 				]),
 
-				svg('use.body-border', { 'xlink:href': `#body${this.id}` }),
+				svg('use.body-border', { href: `#body${this.id}` }),
 				svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
-					svg('use.body-shadow', { 'xlink:href': `#body${this.id}`, filter: 'url(#noise)' }),
-					svg('use.body-highlight', { 'xlink:href': `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+					svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
+					svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 				]),
 			]),
 
@@ -895,18 +1079,18 @@ class Character extends Entity {
 				svg('defs', [
 					svg(`circle #head${this.id}`, {r: 25}),
 					svg(`clipPath #headClip${this.id}`, [
-						svg('use', { 'xlink:href': `#head${this.id}` })
+						svg('use', { href: `#head${this.id}` })
 						// svg('circle', { r: this.anatomy.head.radius - 2 })
 					])
 				]),
 
-				svg('use.head-border', { 'xlink:href': `#head${this.id}`}),
+				svg('use.head-border', { href: `#head${this.id}`}),
 
 				svg('g', {
 					'clip-path': `url(#headClip${this.id})`
 				}, [
-					svg('use.head-shadow', { 'xlink:href': `#head${this.id}`, filter: 'url(#noise)' }),
-					svg('use.head-highlight', { 'xlink:href': `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+					svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
+					svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 
 					this.anatomy.head.eyes.element = svg('g.eyes', {
 						
@@ -930,21 +1114,112 @@ class Character extends Entity {
 	}
 }
 
-class SpeechBubble extends Entity {
+class TextEntity extends Entity {
 	constructor() {
 		super();
+
+		this.pos.applyCallback(this._updateTail.bind(this));
+
+		this.conjoinedTo = null;
 
 		this._initHandles();
 		this._initUI();
 
 		this._updatePos();
 		this._updateScale();
-		this._updateStem();
+		this._updateTail();
+	}
+
+	toggleJoinTextEntity(entity) {
+		if(this.conjoinedTo === null) {
+			this.conjoinedTo = entity;
+			entity.bubbleContainer.appendChild(this.bubble);
+			entity.tailContainer.appendChild(this.tail);
+		}else{
+			this.bubbleContainer.appendChild(this.bubble);
+			this.tailContainer.appendChild(this.tail);
+		}
 	}
 
 	_initUI() {
-		let text = this.addOption('text', new UI.Textarea());
-		text.applyCallback(this._updateText.bind(this));
+		this.addOption(new UI.Textarea('text'));
+		this.options.text.applyCallback(this._updateText.bind(this));
+
+		this.addOption(new UI.Select('type', [
+			'speechBubble',
+			'caption',
+			'thoughtBubble',
+			'whisperBubble',
+			'shoutBubble',
+			'CUSTOM',
+		]));
+		this.options.type.applyCallback(this._updateType.bind(this));
+
+		this.addOption(new UI.Select('shape', [
+			'roundedRectangle',
+			'rectangle',
+			'ellipse',
+			'cloud', 
+			'scream',
+		]));
+		this.options.shape.applyCallback(this._updateShape.bind(this));
+
+		this.addOption(new UI.Bool('whisper', false)); // SHOULD WE CHANGE TO BORDER-TYPE?
+
+		this.addOption(new UI.Bool('showTail', true));
+		this.options.showTail.applyCallback(this._updateTail.bind(this));
+
+		this.addOption(new UI.Select('tailType', [
+			'default',
+		]));
+		this.options.tailType.toggleWith(this.options.showTail);
+		this.options.showTail.applyCallback(this._updateTail.bind(this));
+
+		this.addOption(new UI.Bool('curveTail', false));
+		this.options.curveTail.toggleWith(this.options.showTail);
+	}
+
+	_updateType(type) {
+		switch(type) {
+			case 'speechBubble':
+				this.options.shape.value = 'roundedRectangle';
+				this.options.showTail.value = true;
+				this.options.tailType.value = true;
+				break;
+			case 'caption':
+				this.options.shape.value = 'rectangle';
+				this.options.showTail.value = false;
+				break;
+		}
+	}
+
+	_updateShape(shape) {
+		let replace = (shape !== undefined);
+		shape = (this.options.shape.value || shape);
+		let __setBubbleElement = (function (newElement) {
+			this.bubble.parentElement.replaceChild(newElement, this.bubble);
+			this.bubble = newElement;
+		}).bind(this);
+		switch(shape) {
+			case 'roundedRectangle':
+			case 'rectangle':
+				if(replace) { __setBubbleElement(
+					svg(`rect`, (shape === 'roundedRectangle' ? { rx: 10, ry: 10 } : {}) )
+				) };
+				this.bubble.setAttribute('width', this.scale.x);
+				this.bubble.setAttribute('height', this.scale.y);
+				break;
+			case 'ellipse':
+				if(replace) { __setBubbleElement(
+					svg(`ellipse`)
+				) };
+				this.bubble.setAttribute('cx', this.scale.x / 2);
+				this.bubble.setAttribute('cy', this.scale.y / 2);
+				this.bubble.setAttribute('rx', this.scale.x / 2);
+				this.bubble.setAttribute('ry', this.scale.y / 2);
+				break;
+		}
+		this._updatePos();
 	}
 
 	_updateText(text) {
@@ -956,54 +1231,64 @@ class SpeechBubble extends Entity {
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
 
-		this.stem_base = this.addHandle(new Handle(50, 30));
-		this.stem_base.parent(this.pos);
-		this.stem_base.applyCallback(this._updateStem.bind(this));
+		this.tail_base = this.addHandle(new Handle(50, 30));
+		this.tail_base.parent(this.pos);
+		this.tail_base.applyCallback(this._updateTail.bind(this));
 
-		this.stem_tip = this.addHandle(new Handle(50, 100));
-		this.stem_tip.parent(this.pos);
-		this.stem_tip.applyCallback(this._updateStem.bind(this));
+		this.tail_tip = this.addHandle(new Handle(this.pos.x + 50, this.pos.y + 100));
+		this.tail_tip.applyCallback(this._updateTail.bind(this));
 	}
 
 	_updateScale() {
-		this.bubble.setAttribute('width', this.scale.x);
-		this.bubble.setAttribute('height', this.scale.y);
+		this._updateShape();
 
 		this.textBounds.setAttribute('width', this.scale.x);
 		this.textBounds.setAttribute('height', this.scale.y);
 	}
 
-	_updateStem() {
-		let offsetX = Math.cos(direction(this.stem_tip, this.stem_base) + Math.PI / 2) * 10;
-		let offsetY = Math.sin(direction(this.stem_tip, this.stem_base) + Math.PI / 2) * 10;
-		this.stem.setAttribute('points', `
-			${this.stem_tip.x}, ${this.stem_tip.y}
-			${this.stem_base.x + offsetX}, ${this.stem_base.y + offsetY}
-			${this.stem_base.x - offsetX}, ${this.stem_base.y - offsetY}
-		`)
+	_updateTail() {
+		if(!this.options.showTail.value) { // separate to different func?
+			this.tail_base.disable();
+			this.tail_tip.disable();
+			this.tail.classList.add('hidden');
+		}else{
+			this.tail_base.enable();
+			this.tail_tip.enable();
+			this.tail.classList.remove('hidden');
+		}
+		let relative_tip_pos = this.tail_tip.relativeTo(this.pos);
+		let offsetX = Math.cos(direction(relative_tip_pos, this.tail_base) + Math.PI / 2) * 10;
+		let offsetY = Math.sin(direction(relative_tip_pos, this.tail_base) + Math.PI / 2) * 10;
+		this.tail.setAttribute('points', `
+			${relative_tip_pos.x}, ${relative_tip_pos.y}
+			${this.tail_base.x + offsetX}, ${this.tail_base.y + offsetY}
+			${this.tail_base.x - offsetX}, ${this.tail_base.y - offsetY}
+		`);
 	}
 
 	_updatePos() {
-		this._applyTransformations();
-	}
-
-	_applyTransformations() {
 		let pos = this._convertPointToLocalCoords(this.pos);
-		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.bubble.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.tail.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
 	_render() {
 		this.element = svg('g.speechbubble', [
 			svg('defs', [
-				this.bubble = svg(`rect #bubble${this.id}`, { rx: 10, ry: 10 }),
-				this.stem = svg(`polygon #stem${this.id}`),
+				this.bubbleContainer = svg(`g #bubble${this.id}`, [
+					this.bubble = svg(`rect`, { rx: 10, ry: 10 }),
+				]),
+				this.tailContainer = svg(`g #tail${this.id}`, [
+					this.tail = svg(`polygon`),
+				]),
 				svg(`clipPath #speechbubble${this.id}`, [
 					svg('use', { href: `#bubble${this.id}`}),
-					svg('use', { href: `#stem${this.id}`})
+					svg('use', { href: `#tail${this.id}`})
 				])
 			]),
 			svg('use.bubble', { href: `#bubble${this.id}`}),
-			svg('use.stem', { href: `#stem${this.id}`}),
+			svg('use.tail', { href: `#tail${this.id}`}),
 			svg('rect.fill', { 'clip-path': `url(#speechbubble${this.id})`, x: -1000, y: -1000, width: 2000, height: 2000 }),
 		
 			this.textBounds = svg('foreignObject', [
@@ -1015,110 +1300,41 @@ class SpeechBubble extends Entity {
 	}
 }
 
-class Caption extends Entity {
-	constructor() {
-		super();
+let entityTypes = {Panel, Character, TextEntity};
 
-		this.pos.applyConstraint(constraints.snapToGrid.bind(this, 12.5));
-
-		this._initScale();
-		this._initUI();
-
-		this._updateScale();
-	}
-
-	_initUI() {
-		let text = this.addOption('text', new UI.Textarea());
-		text.applyCallback(this._updateText.bind(this));
-	}
-
-	_updateText(text) {
-		this.text.textContent = text;
-	}
-
-	_initScale() {
-		this.scale = this.addHandle(new Handle(100, 50));
-		this.scale.parent(this.pos);
-		this.scale.applyConstraint(constraints.snapToGrid.bind(this, 12.5));
-		this.scale.applyCallback(this._updateScale.bind(this));
-	}
-
-	_updateScale() {
-		this.rectangle.setAttribute('width', this.scale.x);
-		this.rectangle.setAttribute('height', this.scale.y);
-
-		this.textBounds.setAttribute('width', this.scale.x);
-		this.textBounds.setAttribute('height', this.scale.y);
-	}
-
-	_updatePos() {
-		this.rectangle.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
-		this.textBounds.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
-	}
-
-	_render() {
-		this.element = svg('g.captiongroup', [
-			svg('defs', [
-				this.rectangle = svg(`rect #caption${this.id}`),
-			]),
-			svg('use.caption', { href: `#caption${this.id}` }),
-			this.textBounds = svg('foreignObject', [
-				this.text = h('p.text')
-			])
-		]);
-
-		this.maskElement = svg('use.caption-mask', { 
-			href: `#caption${this.id}`,
-			stroke: `black`,
-			'stroke-width': 12.5
-		});
-		panelMask.appendChild(this.maskElement);
-
-		this.extraBorder = svg('use.caption-extra-border', {
-			href: `#caption${this.id}`,
-			stroke: '#333333',
-			'stroke-width': 16.5
-		});
-		extraBorders.appendChild(this.extraBorder);
-
-		render.appendChild(this.element);
-	}
-
-	ondestroy() {
-		this.maskElement.parentElement.removeChild(this.maskElement);
-		this.extraBorder.parentElement.removeChild(this.extraBorder);
-	}
-}
-
-hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
+hotkeys('ctrl+1, ctrl+2, ctrl+3', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+1': new Panel(); break;
-		case 'ctrl+2': new Caption(); break;
+		case 'ctrl+2': new TextEntity(); break;
 		case 'ctrl+3': new Character(); break;
-		case 'ctrl+4': new SpeechBubble(); break;
 	}
 });
 
-hotkeys('ctrl+q, ctrl+w, ctrl+e, ctrl+r', function(event, handler) {
+hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
 	if(selected === null) return;
-	var el = selected.element;
-	var p = el.parentElement;
 	switch(handler.key) {
-		case 'ctrl+q': p.insertBefore(el, p.children[0]); break;
-		case 'ctrl+w': if(el.previousElementSibling) p.insertBefore(el, el.previousElementSibling); break;
-		case 'ctrl+e': if(el.nextElementSibling) p.insertBefore(el.nextElementSibling, el); break;
-		case 'ctrl+r': p.appendChild(el); break;
+		case 'ctrl+a': selected.moveToBackLayer(); break;
+		case 'ctrl+s': selected.moveBackLayer(); break;
+		case 'ctrl+d': selected.moveForwardLayer(); break;
+		case 'ctrl+f': selected.moveToFrontLayer(); break;
 	}
 	updateUI();
 });
 
-hotkeys('ctrl+a', function(event, handler) {
+hotkeys('ctrl+q, ctrl+w', function(event, handler) {
+	let hoveredEntity = entities[mouse.target.getAttribute('data-id')];
 	switch(handler.key) {
-		case 'ctrl+a':
+		case 'ctrl+q':
 			if(mouse.target.classList.contains('panel') && selected != null) {
-				entities[mouse.target.getAttribute('data-id')].toggleEntity(selected);
+				hoveredEntity.toggleEntity(selected);
 			}
 			break;
+		case 'ctrl+w':
+			if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
+				selected.joinTextEntity(hoveredEntity);
+			}
+			break;
+
 	}
 })
 
@@ -1130,6 +1346,13 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 	updateUI();
 });
 
+hotkeys('ctrl+shift+m', function(event, handler) {
+	if(confirm('Are you sure you want to clear the current save?')) {
+		destroyAll();
+		localStorage.removeItem('data');
+	}
+});
+
 paper.addEventListener('mousedown', function(e) {
 	if(e.target === paper && selected != null) {
 		selected.deselect();
@@ -1139,3 +1362,18 @@ paper.addEventListener('mousedown', function(e) {
 		updateInspector();
 	}
 });
+
+setInterval(function() {
+	localStorage.setItem('data', JSON.stringify(save()));
+}, 1000);
+
+(function(){
+	let data = localStorage.getItem('data');
+	console.log(data);
+	if(data !== null) {
+		load(JSON.parse(data));
+	}
+})(); // load current save
+
+
+

@@ -10,8 +10,15 @@
 [ ] Design actual pages on paper
 [ ] Export HTML
 [ ] Export JS
-[ ] Save to filesystem
+[X] ~~Save to filesystem~~
+[ ] Load from filesystem
 [?] Inline Styles ???
+
+## Bugs
+
+[ ] Fix handles snapping when not being dragged
+[ ] Fix Entities not toggling back in Panel on undo/redo
+[ ] Pull copy/paste out of panel
 
 ## Entities
 [-] Select multiple entities

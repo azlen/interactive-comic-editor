@@ -128,6 +128,19 @@
 })(); // id
 
 (function() {
+	window.shadeBlend = function(p,c0,c1) {
+		var n=p<0?p*-1:p,u=Math.round,w=parseInt;
+		if(c0.length>7){
+			var f=c0.split(","),t=(c1?c1:p<0?"rgb(0,0,0)":"rgb(255,255,255)").split(","),R=w(f[0].slice(4)),G=w(f[1]),B=w(f[2]);
+			return "rgb("+(u((w(t[0].slice(4))-R)*n)+R)+","+(u((w(t[1])-G)*n)+G)+","+(u((w(t[2])-B)*n)+B)+")"
+		}else{
+			var f=w(c0.slice(1),16),t=w((c1?c1:p<0?"#000000":"#FFFFFF").slice(1),16),R1=f>>16,G1=f>>8&0x00FF,B1=f&0x0000FF;
+			return "#"+(0x1000000+(u(((t>>16)-R1)*n)+R1)*0x10000+(u(((t>>8&0x00FF)-G1)*n)+G1)*0x100+(u(((t&0x0000FF)-B1)*n)+B1)).toString(16).slice(1)
+		}
+	}
+})();
+
+(function() {
 	window.traverseLeafElements = function(element, func) {
 	    let child = element.firstElementChild;
 	    if(child === null) func(element)
@@ -136,17 +149,29 @@
 	        child = child.nextElementSibling;
 	    }
 	}
-})(); // traverseLeafElements
 
-let panelMask, disruptMask, render, extraBorders, handles;
+	window.getClosestEntityID = function(element) {
+		while(element) {
+			if(element.hasAttribute('data-id')) {
+				return element.getAttribute('data-id');
+			}
+			element = element.parentElement;
+		}
+		return null;
+	}
+})(); // traverseLeafElements, getClosestEntityID
+
+let defs, panelMask, disruptMask, render, extraBorders, handles;
 let selected = null;
+
+let imageDirectory = '../images/';
 
 let undoStack = [];
 let redoStack = [];
 let clipBoard = null;
 
 let paper = svg('svg.paper', [	
-	svg('defs', [
+	defs = svg('defs', [
 		svg('filter #blur', [
 			svg('feGaussianBlur', { in: 'SourceGraphic', stdDeviation: 4, result: 'blur' }),
 		]),
@@ -260,8 +285,12 @@ function save() {
 }
 
 function saveToFileSystem() {
-	var blob = new Blob([JSON.stringify(getSaveObject())], {type: "text/plain;charset=utf-8"});
-	saveAs(blob, `COMIX_${new Date() * 1}.json`);
+	download(JSON.stringify(getSaveObject()), `COMIX_${new Date() * 1}.json`)
+}
+
+function download(text, filename) {
+	var blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+	saveAs(blob, filename);
 }
 
 function getSaveObject() {
@@ -291,6 +320,9 @@ function getSavedEntityObject(entity) {
 			return ent.id;
 		})
 	}
+	if(entity.currentPanel !== null) {
+		savedEntity.currentPanel = entity.currentPanel.id;
+	}
 	return savedEntity;
 }
 
@@ -303,17 +335,9 @@ function load(s) {
 		let entity = createEntityFromSaveObject(s.entities[i]);
 		_ids.push(entity.id);
 	}
-
-	for(let i in s.entities) {
-		if(s.entities[i].hasOwnProperty('entities')) {
-			s.entities[i].entities.forEach(function(ent_id) {
-				entities[_ids[i]].toggleEntity(entities[ent_id]);
-			})
-		}
-	}
 }
 
-function createEntityFromSaveObject(s, addChildren) {
+function createEntityFromSaveObject(s) {
 	let entity = new (entityTypes[s.type])();
 	
 	for(let opt in s.options) {
@@ -323,10 +347,16 @@ function createEntityFromSaveObject(s, addChildren) {
 		entity.handles[j].setPosition(handle.x, handle.y, true);
 	});
 
-	if(addChildren && s.hasOwnProperty('entities')) {
+	if(s.hasOwnProperty('entities')) {
 		s.entities.forEach(function(ent_id) {
-			entity.toggleEntity(entities[ent_id]);
+			if(entities.hasOwnProperty(ent_id)) {
+				entity.toggleEntity(entities[ent_id]);
+			}
 		})
+	}
+
+	if(s.hasOwnProperty('currentPanel') && entities.hasOwnProperty(s.currentPanel)) {
+		entities[s.currentPanel].toggleEntity(entity);
 	}
 
 	return entity;
@@ -372,6 +402,21 @@ function paste() {
 	entity.pos.setPosition(mouse.x, mouse.y, true);
 
 	save();
+}
+
+function exportHTML() {
+	let styleElement, svgElement;
+	let htmlElement = h('html', [
+		h('head', [
+			styleElement = h('style')
+		]),
+		h('body', [
+			svgElement = svg('svg.paper')
+		])
+	]);
+	styleElement.innerHTML = document.head.querySelector('style').innerHTML;
+	svgElement.innerHTML = defs.outerHTML + render.outerHTML;
+	download(htmlElement.outerHTML, 'exportHTML.html');
 }
 
 function destroyAll() {
@@ -525,10 +570,31 @@ UI.File = class extends UI._Element {
 	}
 }
 
+UI.Color = class extends UI._Element {
+	_render(initialValue) {
+		this.element = h('input', { type: 'color', value: initialValue });
+		this.element.addEventListener('change', this._changed.bind(this));
+	}
+}
+
 setTimeout(updateViewBox, 0);
 
 
 let constraints = {
+	shiftActivate: function(constraint, pos) {
+		if(hotkeys.isPressed(16)) {
+			return constraint(pos);
+		}else{
+			return pos
+		};
+	},
+	shiftDeactivate: function(constraint, pos) {
+		if(!hotkeys.isPressed(16)) {
+			return constraint(pos);
+		}else{
+			return pos
+		};
+	},
 	snapToGrid: function(gridSize, pos) {
 		pos.x = Math.round(pos.x / gridSize) * gridSize;
 		pos.y = Math.round(pos.y / gridSize) * gridSize;
@@ -547,6 +613,11 @@ let constraints = {
 		pos.x = Math.cos(dir) * dist;
 		pos.y = Math.sin(dir) * dist;
 		return pos;
+	},
+	keepRatio: function(x, y, pos) {
+		if(pos.x > pos.y) pos.y = pos.x * x / y
+		else pos.x = pos.y * y / x;
+		return pos;
 	}
 }
 
@@ -564,6 +635,7 @@ class Handle {
 		this.constraints = [];
 
 		this.disabled = false;
+		this.dragging = false;
 
 		this._render();
 	}
@@ -574,9 +646,9 @@ class Handle {
 			get y() { return handle.y + handle.origin.y; }
 		};
 		handle.applyCallback(function() {
-			this.move(0, 0, true);
+			this.updatePosition(true);
 		}.bind(this));
-		this.move(0, 0, true);
+		this.updatePosition(true);
 	}
 
 	relativeTo(handle) {
@@ -592,7 +664,12 @@ class Handle {
 
 	applyConstraint() {
 		this.constraints = this.constraints.concat([].slice.call(arguments));
-		this.move(0, 0);
+		this.updatePosition();
+	}
+
+	removeConstraint(c) {
+		this.constraints.remove(c);
+		this.updatePosition();
 	}
 
 	applyTransformations() {
@@ -611,25 +688,24 @@ class Handle {
 		this._x = x;
 		this._y = y;
 
+		this.updatePosition(doActivateCallbacks)
+	}
+
+	updatePosition(doActivateCallbacks) {
 		let newPos = {x: this._x, y: this._y};
 
-		if(hotkeys.isPressed(16)) {
-			newPos = constraints.snapToGrid.apply(null, [12.5, newPos]);
-		} // THIS IS PROBABLY STUPID, APPLIED TO ALL HANDLES! (including rotation OMG)
+		if(this.dragging) {
+			this.constraints.forEach(function(fn) {
+				newPos = fn(newPos);
+			});
+		}
 
-		this.constraints.forEach(function(fn) {
-			newPos = fn(newPos);
-		});
-
-		// this will waste some processing I guess but it fixes things!
-		//if(this.x != newPos.x || this.y != newPos.y) {
 		this.x = newPos.x;
 		this.y = newPos.y;
 
 		if(doActivateCallbacks) {
 			this.activateCallbacks();
 		}
-		//}
 
 		this.applyTransformations();
 	}
@@ -687,14 +763,18 @@ class Handle {
 				x1: 0, y1: 0, x2: 7, y2: 0,
 			})
 		]);
-		this.move(0, 0);
+		this.updatePosition();
 
 		draggable(this.element, {
+			mousedown: function() {
+				this.dragging = true;
+			}.bind(this),
 			mousemove: function(dx, dy) {
 				this.move(dx, dy, true);
 			}.bind(this),
 			mouseup: function() {
 				this.setPosition(this.x, this.y);
+				this.dragging = false;
 				save();
 			}.bind(this)
 		});
@@ -727,14 +807,16 @@ class Entity {
 
 		this.options = {};
 
+		this.currentPanel = null;
+
+		this._initPos();
+
 		this._render();
 		this.element.setAttribute('id', `entity${this.id}`);
 		this.element.setAttribute('data-id', this.id);
 		this.element.setAttribute('data-type', this.constructor.name);
 
 		this._initDisrupt();
-
-		this._initPos();
 
 		this._makeSelectable();
 		this.select();
@@ -751,8 +833,11 @@ class Entity {
 		return uiElement;
 	}
 
-	addHandle(handle) {
+	addHandle(handle, snapOnShift) {
 		this.handles.push(handle);
+		if(snapOnShift !== false) {
+			handle.applyCallback(constraints.shiftActivate.bind(null, constraints.snapToGrid.bind(null, 12.5)));
+		}
 		return handle;
 	}
 
@@ -920,6 +1005,7 @@ class Panel extends Entity {
 		super();
 
 		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
+		this.pos.updatePosition();
 
 		this.entities = [];
 
@@ -930,12 +1016,15 @@ class Panel extends Entity {
 	}
 
 	toggleEntity(entity) {
+		if(entity === this) return;
 		let index = this.entities.indexOf(entity);
 		if(index != -1) {
 			render.appendChild(entity.element);
+			entity.currentPanel = null;
 			this.entities.splice(index, 1);
 		}else{
 			this.content.appendChild(entity.element);
+			entity.currentPanel = this;
 			this.entities.push(entity);
 		}
 		entity._updatePos();
@@ -997,126 +1086,191 @@ class Panel extends Entity {
 }
 
 class Character extends Entity {
-	constructor() {
-		super();
+	_render() {
+		this.head = new CharacterHead(this);
+		this.body = new CharacterBody(this);
 
-		this._initHeadHandles();
-		this._initBodyHandles();
+		this.element = svg('g.character', [	
+			this.body.element,
+			this.head.element
+		]);
+
+		render.appendChild(this.element);
+	}
+}
+
+class CharacterHead {
+	constructor(character) {
+		this.character = character;
+
+		this.radius = 25;
+
+		this._initHandles();
+
+		this.eyes = new CharacterEyes(this);
+
+		this.character.addOption(new UI.Color('headColor', '#FFE58C'));
+		this.character.options.headColor.applyCallback(this._updateColor);
+
+		this._render();
+
+		this._updatePos();
 	}
 
-	_initAnatomy() {
-		this.anatomy = {
-			head: {
-				radius: 25,
-				eyes: {}
-			},
-			body: {
-				path: {},
-			},
-			limbs: {
-				left_arm: {},
-				right_arm: {},
-				left_leg: {},
-				right_leg: {}
-			}
+	_initHandles() {
+		this.pos = this.character.addHandle(new Handle(30, 0));
+		this.pos.parent(this.character.pos);
+		this.pos.applyCallback(this._updatePos.bind(this));
+	}
+	
+	_updatePos() {
+		let x = this.pos.x + this.radius;
+		let y = this.pos.y + this.radius;
+		this.element.setAttribute('transform', `translate(${x}, ${y})`);
+	}
+
+	_updateColor() {
+
+	}
+
+	_render() {
+		this.element = svg('g.headgroup', [
+			svg('defs', [
+				svg(`circle #head${this.id}`, {r: 25}),
+				svg(`clipPath #headClip${this.id}`, [
+					svg('use', { href: `#head${this.id}` })
+					// svg('circle', { r: this.anatomy.head.radius - 2 })
+				])
+			]),
+
+			svg('use.head-border', { href: `#head${this.id}`}),
+
+			svg('g', {
+				'clip-path': `url(#headClip${this.id})`
+			}, [
+				svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
+				svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+			
+				this.eyes.element
+			]),
+		]);
+	}
+}
+
+class CharacterEyes{
+	constructor(head) {
+		this.head = head;
+
+		this._initHandles();
+
+		this._render();
+
+		this._updatePos();
+	}
+
+	_initHandles() {
+		this.pos = this.head.character.addHandle(new RotationHandle(60, 25));
+		this.pos.parent(this.head.pos);
+		this.pos.applyCallback(this._updatePos.bind(this));
+		this.pos.handle.applyCallback(this._updatePos.bind(this));
+	}
+
+	_updatePos() {
+		let x = this.pos.x - this.head.radius - 30;
+		let y = this.pos.y - this.head.radius;
+		let rotation = radToDeg(this.pos.rotation);
+		this.element.setAttribute('transform', `translate(${x}, ${y}) rotate(${rotation})`);
+	}
+
+	_render() {
+		this.element = svg('g.eyes', [
+			svg('ellipse', {
+				cx: -8, rx: 3, ry: 9,
+			}),
+			svg('ellipse', {
+				cx: 8, rx: 3, ry: 9,
+			})
+		]);
+		return this.element;
+	}
+}
+
+class CharacterBody {
+	constructor(character) {
+		this.character = character;
+		this.path = {};
+
+		this._initHandles();
+		this._initLimbs();
+
+		this._render();
+
+		this._updatePos();
+		this._updatePath();
+	}
+
+	_initHandles() {
+		this.pos = this.character.addHandle(new RotationHandle(55, 65));
+		this.pos.parent(this.character.pos);
+		this.pos.applyCallback(this._updatePos.bind(this));
+		this.pos.handle.applyCallback(this._updatePath.bind(this));
+
+		this.control1 = this.character.addHandle(new RotationHandle(0, 100));
+		this.control1.parent(this.pos);
+		this.control1.applyCallback(this._updatePath.bind(this));
+		this.control1.handle.applyCallback(this._updatePath.bind(this));
+
+		this.control2 = this.character.addHandle(new Handle(-13, 51));
+		this.control2.parent(this.pos);
+		this.control2.applyCallback(this._updatePath.bind(this));
+	}
+
+	_initLimbs() {
+		this.limbs = {
+			'left_arm': new CharacterLimb(this, {x: -53, y: 96}, {x: -63, y: 38}),
+			'right_arm': new CharacterLimb(this, {x: 65, y: 88}, {x: 26, y: 54}),
+			'left_leg': new CharacterLimb(this, {x: -29, y: 203}, {x: 3, y: 130}),
+			'right_leg': new CharacterLimb(this, {x: 31, y: 204}, {x: 30, y: 130})
 		};
 	}
 
-	_initHeadHandles() {
-		let head = this.anatomy.head;
-		head.pos = this.addHandle(new Handle(30, 0));
-		head.pos.parent(this.pos);
-		head.pos.applyCallback(this._updateHeadPos.bind(this));
-
-		head.eyes.pos = this.addHandle(new RotationHandle(60, 25));
-		head.eyes.pos.parent(head.pos);
-		head.eyes.pos.applyCallback(this._updateEyePos.bind(this));
-		head.eyes.pos.handle.applyCallback(this._updateEyePos.bind(this));
-
-		this._updateHeadPos();
-		this._updateEyePos();
-	}
-	
-	_updateHeadPos() {
-		let head = this.anatomy.head;
-		let x = head.pos.x + head.radius;
-		let y = head.pos.y + head.radius;
-		head.element.setAttribute('transform', `translate(${x}, ${y})`);
+	_updatePos() {
+		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
 	}
 
-	_updateEyePos() {
-		let head = this.anatomy.head;
-		let x = head.eyes.pos.x - head.radius - 30;
-		let y = head.eyes.pos.y - head.radius;
-		let rotation = radToDeg(head.eyes.pos.rotation);
-		head.eyes.element.setAttribute('transform', `translate(${x}, ${y}) rotate(${rotation})`);
-	}
-
-	_initBodyHandles() {
-		let body = this.anatomy.body;
-		body.pos = this.addHandle(new RotationHandle(55, 65));
-		body.pos.parent(this.pos);
-		body.pos.applyCallback(this._updateBodyPos.bind(this));
-		body.pos.handle.applyCallback(this._updateBodyPath.bind(this));
-
-		body.control1 = this.addHandle(new RotationHandle(0, 100));
-		body.control1.parent(body.pos);
-		body.control1.applyCallback(this._updateBodyPath.bind(this));
-		body.control1.handle.applyCallback(this._updateBodyPath.bind(this));
-
-		body.control2 = this.addHandle(new Handle(-13, 51));
-		body.control2.parent(body.pos);
-		body.control2.applyCallback(this._updateBodyPath.bind(this));
-
-		this._initLimbHandles();
-
-		this._updateBodyPos();
-		this._updateBodyPath();
-	}
-
-	_updateBodyPos() {
-		let body = this.anatomy.body;
-		let x = body.pos.x;
-		let y = body.pos.y;
-		body.element.setAttribute('transform', `translate(${x}, ${y})`);
-	}
-
-	_updateBodyPath() {
-		let body = this.anatomy.body;
+	_updatePath() {
 		let top_length = 50, bot_length = 25;
 		let p1 = {
-			x: Math.cos(body.pos.rotation) * top_length / 2,
-			y: Math.sin(body.pos.rotation) * top_length / 2
+			x: Math.cos(this.pos.rotation) * top_length / 2,
+			y: Math.sin(this.pos.rotation) * top_length / 2
 		}
 		let p2 = {
-			x: body.control1.x + Math.cos(body.control1.rotation) * bot_length / 2,
-			y: body.control1.y + Math.sin(body.control1.rotation) * bot_length / 2
+			x: this.control1.x + Math.cos(this.control1.rotation) * bot_length / 2,
+			y: this.control1.y + Math.sin(this.control1.rotation) * bot_length / 2
 		}
 		let p3 = {
-			x: body.control1.x - Math.cos(body.control1.rotation) * bot_length / 2,
-			y: body.control1.y - Math.sin(body.control1.rotation) * bot_length / 2
+			x: this.control1.x - Math.cos(this.control1.rotation) * bot_length / 2,
+			y: this.control1.y - Math.sin(this.control1.rotation) * bot_length / 2
 		}
 		let p4 = {
 			x: -p1.x,
 			y: -p1.y
 		}
 		let controlA = {
-			x: body.control2.x + Math.cos((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
-			y: body.control2.y + Math.sin((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			x: this.control2.x + Math.cos((this.pos.rotation + this.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			y: this.control2.y + Math.sin((this.pos.rotation + this.control1.rotation) / 2) * (top_length + bot_length) / 4,
 		}
 		let controlB = {
-			x: body.control2.x - Math.cos((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
-			y: body.control2.y - Math.sin((body.pos.rotation + body.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			x: this.control2.x - Math.cos((this.pos.rotation + this.control1.rotation) / 2) * (top_length + bot_length) / 4,
+			y: this.control2.y - Math.sin((this.pos.rotation + this.control1.rotation) / 2) * (top_length + bot_length) / 4,
 		}
 
-		this.anatomy.limbs.left_arm.pos = p4;
-		this.anatomy.limbs.right_arm.pos = p1;
-		this.anatomy.limbs.left_leg.pos = p3;
-		this.anatomy.limbs.right_leg.pos = p2;
+		this.limbs.left_arm.pos = p4;
+		this.limbs.right_arm.pos = p1;
+		this.limbs.left_leg.pos = p3;
+		this.limbs.right_leg.pos = p2;
 
-		this._updateLimbs();
-
-		body.path.element.setAttribute('d', `
+		this.path.element.setAttribute('d', `
 			M ${p1.x} ${p1.y}
 			Q ${controlA.x} ${controlA.y} ${p2.x} ${p2.y}
 			L ${p3.x} ${p3.y}
@@ -1125,103 +1279,71 @@ class Character extends Entity {
 		`);
 	}
 
-	_initLimbHandles() {
-		let limbs = this.anatomy.limbs;
-		let iHP = { // initialHandlePositions
-			'left_arm': [{x: -53, y: 96}, {x: -63, y: 38}],
-			'right_arm': [{x: 65, y: 88}, {x: 26, y: 54}],
-			'left_leg': [{x: -29, y: 203}, {x: 3, y: 130}],
-			'right_leg': [{x: 31, y: 204}, {x: 30, y: 130}],
-		};
-		for(let limb in iHP) {
-			limbs[limb].control1 = this.addHandle(new Handle(iHP[limb][0].x, iHP[limb][0].y));
-			limbs[limb].control1.parent(this.anatomy.body.pos);
-			limbs[limb].control1.applyCallback(this._updateLimb.bind(this, limbs[limb]));
+	_render() {
+		this.element = svg('g.bodygroup', [
+			svg('defs', [
+				this.path.element = svg(`path #body${this.id}`),
 
-			limbs[limb].control2 = this.addHandle(new Handle(iHP[limb][1].x, iHP[limb][1].y));
-			limbs[limb].control2.parent(this.anatomy.body.pos);
-			limbs[limb].control2.applyCallback(this._updateLimb.bind(this, limbs[limb]));
+				svg(`clipPath #bodyClip${this.id}`, [
+					svg('use', { href: `#body${this.id}` })
+				])
+			]),
 
-			// this._updateLimb(limbs[limb]);
-		}
+			svg('g.limbs', [
+				this.limbs.left_arm.element,
+				this.limbs.right_arm.element,
+				this.limbs.left_leg.element,
+				this.limbs.right_leg.element,
+			]),
+
+			svg('use.body-border', { href: `#body${this.id}` }),
+			svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
+				svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
+				svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+			]),
+		]);
+	}
+}
+
+class CharacterLimb {
+	constructor(body, control1pos, control2pos) {
+		this.body = body;
+		this._pos = {x: 0, y: 0};
+
+		this._render();
+
+		this._initHandles(control1pos, control2pos);
 	}
 
-	_updateLimb(limb) {
-		limb.element.setAttribute('d', `
-			M ${limb.pos.x} ${limb.pos.y}
-			Q ${limb.control2.x} ${limb.control2.y} ${limb.control1.x} ${limb.control1.y}
+	get pos() {
+		return this._pos;
+	}
+
+	set pos(newPos) {
+		this._pos = newPos;
+		this._update();
+		return this._pos;
+	}
+
+	_initHandles(control1pos, control2pos) {
+		this.control1 = this.body.character.addHandle(new Handle(control1pos.x, control1pos.y));
+		this.control1.parent(this.body.pos);
+		this.control1.applyCallback(this._update.bind(this));
+
+		this.control2 = this.body.character.addHandle(new Handle(control2pos.x, control2pos.y));
+		this.control2.parent(this.body.pos);
+		this.control2.applyCallback(this._update.bind(this));
+	}
+
+	_update() {
+		this.element.setAttribute('d', `
+			M ${this.pos.x} ${this.pos.y}
+			Q ${this.control2.x} ${this.control2.y} ${this.control1.x} ${this.control1.y}
 		`);
 	}
 
-	_updateLimbs() {
-		for(let limb in this.anatomy.limbs) {
-			this._updateLimb(this.anatomy.limbs[limb]);
-		}
-	}
-
 	_render() {
-		this._initAnatomy();
-
-		this.element = svg('g.character', [	
-			this.anatomy.body.element = svg('g.bodygroup', [
-				svg('defs', [
-					this.anatomy.body.path.element = svg(`path #body${this.id}`),
-
-					svg(`clipPath #bodyClip${this.id}`, [
-						svg('use', { href: `#body${this.id}` })
-					])
-				]),
-
-				svg('g.limbs', [
-					this.anatomy.limbs.left_arm.element = svg('path.limb'),
-					this.anatomy.limbs.right_arm.element = svg('path.limb'),
-					this.anatomy.limbs.left_leg.element = svg('path.limb'),
-					this.anatomy.limbs.right_leg.element = svg('path.limb'),
-				]),
-
-				svg('use.body-border', { href: `#body${this.id}` }),
-				svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
-					svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
-					svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
-				]),
-			]),
-
-			this.anatomy.head.element = svg('g.headgroup', [
-				svg('defs', [
-					svg(`circle #head${this.id}`, {r: 25}),
-					svg(`clipPath #headClip${this.id}`, [
-						svg('use', { href: `#head${this.id}` })
-						// svg('circle', { r: this.anatomy.head.radius - 2 })
-					])
-				]),
-
-				svg('use.head-border', { href: `#head${this.id}`}),
-
-				svg('g', {
-					'clip-path': `url(#headClip${this.id})`
-				}, [
-					svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
-					svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
-
-					this.anatomy.head.eyes.element = svg('g.eyes', {
-						
-					}, [
-						svg('ellipse', {
-							cx: -7, rx: 3, ry: 9,
-						}),
-						svg('ellipse', {
-							cx: 7, rx: 3, ry: 9,
-						})
-					])
-				])
-				
-				/*,*/
-
-				
-			]),
-		]);
-
-		render.appendChild(this.element);
+		this.element = svg('path.limb');
 	}
 }
 
@@ -1419,12 +1541,51 @@ class ImportEntity extends Entity {
 
 		this.pos._initRotationalHandle(0);
 
+		this.imageSize = null;
+		this.ratioConstraint = null;
+
 		this.addOption(new UI.File('image'));
+		this.options.image.applyCallback(this._updateImage.bind(this));
+
+		this._initScale();
+
+		this._updateScale();
+	}
+
+	_initScale() {
+		this.scale = this.addHandle(new Handle(100, 100));
+		this.scale.parent(this.pos);
+		this.scale.applyCallback(this._updateScale.bind(this));
+	}
+
+	_updateScale() {
+		if(this.imageSize) {
+			this.image.setAttribute('width', this.scale.x);
+			this.image.setAttribute('height', this.scale.y);
+		}
+	}
+
+	_updateImage() {
+		let path = imageDirectory + this.options.image.value;
+		this.image.setAttribute('href', path);
+
+		let size = new Image();
+		size.setAttribute('src', path);
+
+		size.addEventListener('load', function() {
+			this.imageSize = { width: size.width, height: size.height };
+
+			if( this.ratioConstraint ) this.scale.removeConstraint(this.ratioConstraint);
+			this.ratioConstraint = constraints.keepRatio.bind(null, this.imageSize.width, this.imageSize.height);
+			this.scale.applyConstraint(this.ratioConstraint);
+
+			this.scale.setPosition(this.scale.x, 0);
+		}.bind(this));
 	}
 
 	_render() {
 		this.element = svg('g',	[
-			svg('rect.no-pointer-events', { width: 100, height: 100 }),
+			this.image = svg('image')
 		]);
 
 		render.appendChild(this.element);
@@ -1455,7 +1616,7 @@ hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
 });
 
 hotkeys('ctrl+q, ctrl+w', function(event, handler) {
-	let hoveredEntity = entities[mouse.target.getAttribute('data-id')];
+	let hoveredEntity = entities[getClosestEntityID(mouse.target)];
 	switch(handler.key) {
 		case 'ctrl+q':
 			if(mouse.target.classList.contains('panel') && selected != null) {
@@ -1464,10 +1625,9 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 			save();
 			break;
 		case 'ctrl+w':
-			/*if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
-				selected.joinTextEntity(hoveredEntity);
-			}*/
-			console.log(mouse.target);
+			if(selected.constructor === TextEntity && hoveredEntity.constructor === TextEntity) {
+				selected.toggleJoinTextEntity(hoveredEntity);
+			}
 			break;
 
 	}
@@ -1504,9 +1664,13 @@ hotkeys('cmd+x, cmd+c, cmd+v', function(event, handler) {
 	}
 });
 
-hotkeys('cmd+s', function(event, handler) {
+hotkeys('cmd+s, cmd+o, ctrl+p', function(event, handler) {
 	event.preventDefault();
-	saveToFileSystem();
+	switch(handler.key) {
+		case 'cmd+s': saveToFileSystem(); break;
+		case 'cmd+o': loadFromFileSystem(); break;
+		case 'ctrl+p': exportHTML(); break;
+	}
 })
 
 paper.addEventListener('mousedown', function(e) {

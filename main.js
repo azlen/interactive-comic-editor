@@ -1,5 +1,9 @@
 "use strict";
 
+/* --------------------================-------------------- */
+/*                    Utility  Functions                    */
+/* --------------------================-------------------- */
+
 (function() {
 	function _generateElement(args, el) {
 		let e = null;
@@ -127,7 +131,7 @@
 	}
 })(); // id
 
-(function() {
+/*(function() {
 	window.shadeBlend = function(p,c0,c1) {
 		var n=p<0?p*-1:p,u=Math.round,w=parseInt;
 		if(c0.length>7){
@@ -138,7 +142,7 @@
 			return "#"+(0x1000000+(u(((t>>16)-R1)*n)+R1)*0x10000+(u(((t>>8&0x00FF)-G1)*n)+G1)*0x100+(u(((t&0x0000FF)-B1)*n)+B1)).toString(16).slice(1)
 		}
 	}
-})();
+})();*/
 
 (function() {
 	window.traverseLeafElements = function(element, func) {
@@ -160,6 +164,11 @@
 		return null;
 	}
 })(); // traverseLeafElements, getClosestEntityID
+
+
+/* --------------------================-------------------- */
+/*                        Init Vars                         */
+/* --------------------================-------------------- */
 
 let defs, panelMask, disruptMask, render, extraBorders, handles;
 let selected = null;
@@ -206,25 +215,17 @@ let paper = svg('svg.paper', [
 	handles = svg('g.handles'),
 ]);
 
-document.body.appendChild(paper);
-
 let viewBox = {
 	x: 0, y: 0,
 	scale: 1,
 }
 
-paper.addEventListener('mousewheel', function(e) {
-	e.preventDefault();
-	e.stopPropagation();
-	if(e.ctrlKey) {
-		viewBox.scale += e.deltaY * viewBox.scale / 100;
-		viewBox.scale = Math.min(Math.max(viewBox.scale, 0.1), 1)
-	}else{
-		viewBox.x += e.deltaX * viewBox.scale;
-		viewBox.y += e.deltaY * viewBox.scale;
-	}
-	updateViewBox();	
-});
+let inspector = document.querySelector('.inspector .content');
+let layers = document.querySelector('.layers .content');
+
+/* --------------------================-------------------- */
+/*                        Functions                         */
+/* --------------------================-------------------- */
 
 function updateViewBox() {
 	paper.setAttribute('viewBox', `
@@ -234,11 +235,6 @@ function updateViewBox() {
 		${paper.height.baseVal.value * viewBox.scale}
 	`);
 }
-
-let inspector = document.querySelector('.inspector .content');
-let layers = document.querySelector('.layers .content');
-
-window.addEventListener('resize', updateViewBox);
 
 function clearChildren(element) {
 	[].slice.call(element.children).forEach(function(child) {
@@ -426,78 +422,91 @@ function destroyAll() {
 	entities = {};
 }
 
+/* --------------------================-------------------- */
+/*                            UI                            */
+/* --------------------================-------------------- */
+
 var UI = {};
 
-UI._Element = class {
+UI._Element = class { // UI element base class 
 	constructor(name) {
-		this.name = name;
+		this.name = name; // name used in inspector element
 
+		// render UI element (with all extra arguments passed into this constructor, basically arguments minus "name")
 		this._render.apply(this, [].slice.call(arguments, 1));
+		// create inspector element to display both name and input in inspector
 		this.inspector_element =  h('.item', `${this.name}: `, this.element);
 
+		// initialize variables
 		this.callbacks = [];
 		this._value;
 
+		// pull value from HTML to set the initial value in this UI element
 		this._html2value();
 	}
 
-	_html2value() {
+	_html2value() { // set value to element value
 		this.value = this.element.value;
 	}
 
-	_value2html() {
+	_value2html() { // set element value to value
 		this.element.value = this.value;
 	}
 
-	_changed() {
+	_changed() { // _html2value w/ save, which pushes changes to undoStack
 		this._html2value();
 		save();
 	}
 
 	toggleWith(uiElement, value) {
+		// show this UI element when other UI element is equal to a certain value
+		value = value || true; // default value: true (e.g., bool UI elements)
+		// Apply callback to other UI element to check its value onchange
 		uiElement.applyCallback(function(newValue) {
-			if(newValue === (value || true)) this.inspector_element.classList.remove('hidden')
-			else this.inspector_element.classList.add('hidden');
+			if(newValue === value) { // if value is present, show this UI element
+				this.inspector_element.classList.remove('hidden');
+			} else { // if value is NOT present, hide this UI element
+				this.inspector_element.classList.add('hidden')
+			};
 		}.bind(this));
 	}
 
-	applyCallback() {
+	applyCallback() { // add (one or multiple) callback(s) to trigger when value changes for this UI element
 		this.callbacks = this.callbacks.concat([].slice.call(arguments));
 	}
 
-	activateCallbacks(newValue) {
+	activateCallbacks(newValue) { // activate each callback on this UI element and feed it new value
 		this.callbacks.forEach(function(callback) {
 			callback(newValue);
 		});
 	}
 
-	get value() {
+	get value() { // get value of this UI element
 		return this._value;
 	}
  
-	set value(newValue) {
-		if(this._value != newValue) {
-			this._value = newValue;
-			this.activateCallbacks(this._value);
-			this._value2html(this._value);
+	set value(newValue) { // set value of this UI element and activate callbacks listening for changes
+		if(this._value !== newValue) { // only set value + apply callbacks IF THE VALUE HAS ACTUALLY CHANGED
+			this._value = newValue; // set value
+			this.activateCallbacks(this._value); // activate callbacks
+			this._value2html(this._value); // update HTML value (in case value has been set through javascript)
 		}
 		return this._value;
 	}
 
-	_render() {
-		// Override
-	}
+	_render() {}
 }
 
-UI.Input = class extends UI._Element {
+UI.Input = class extends UI._Element { // single-line text input
 	_render(initialValue) {
 		this.element = h('input', { value: (initialValue || '') });	
+
 		this.element.addEventListener('input', this._html2value.bind(this));
 		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
-UI.Textarea = class extends UI._Element {
+UI.Textarea = class extends UI._Element { // multiline text input 
 	_render(initialValue) {
 		this.element = h('textarea', { value: (initialValue || '') });
 		this.element.addEventListener('input', this._html2value.bind(this));
@@ -505,7 +514,7 @@ UI.Textarea = class extends UI._Element {
 	}
 }
 
-UI.Bool = class extends UI._Element {
+UI.Bool = class extends UI._Element { // checkbox 
 	_html2value() {
 		this.value = this.element.checked;
 	}
@@ -521,7 +530,7 @@ UI.Bool = class extends UI._Element {
 	}
 }
 
-UI.Number = class extends UI._Element {
+UI.Number = class extends UI._Element { // number input
 	_render() {
 		this.element = h('input', { type: 'number' });
 		this.element.addEventListener('change', this._changed.bind(this));
@@ -529,7 +538,7 @@ UI.Number = class extends UI._Element {
 	}
 }
 
-UI.Select = class extends UI._Element {
+UI.Select = class extends UI._Element { // select box 
 	_render(options) {
 		this.element = h('select', options.map(function(option) {
 			return h('option', { value: option }, option);
@@ -538,14 +547,14 @@ UI.Select = class extends UI._Element {
 	}
 }
 
-UI.Slider = class extends UI._Element {
+UI.Slider = class extends UI._Element { // range input
 	_render(initialValue, boundsArray) {
 		this.element = h('input', { type: 'range' });
 		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
-UI.File = class extends UI._Element {
+UI.File = class extends UI._Element { // file input
 	_html2value() {
 		if(this.input.files[0] !== undefined) {
 			this.value = this.input.files[0].name;
@@ -570,15 +579,16 @@ UI.File = class extends UI._Element {
 	}
 }
 
-UI.Color = class extends UI._Element {
+UI.Color = class extends UI._Element { // color input 
 	_render(initialValue) {
 		this.element = h('input', { type: 'color', value: initialValue });
 		this.element.addEventListener('change', this._changed.bind(this));
 	}
 }
 
-setTimeout(updateViewBox, 0);
-
+/* --------------------================-------------------- */
+/*                       Constraints                        */
+/* --------------------================-------------------- */
 
 let constraints = {
 	shiftActivate: function(constraint, pos) {
@@ -621,13 +631,17 @@ let constraints = {
 	}
 }
 
+/* --------------------================-------------------- */
+/*                         Handles                          */
+/* --------------------================-------------------- */
+
 class Handle {
 	constructor(x, y) {
 		this.x = x;
 		this.y = y;
 
-		this._x = x;
-		this._y = y;
+		this._x = x; // actual x position before constraints are applied
+		this._y = y; // actual y position before constraints are applied
 
 		this.origin = {x: 0, y: 0};
 
@@ -640,39 +654,51 @@ class Handle {
 		this._render();
 	}
 
-	parent(handle) {
+	// make position of this handle relative to specified parent handle
+	parent(handle) { 
 		this.origin = {
+			// absolute origin, no matter how deeply nested
 			get x() { return handle.x + handle.origin.x; },
 			get y() { return handle.y + handle.origin.y; }
 		};
+		// when position of parent handle changes, update position of this handle
 		handle.applyCallback(function() {
 			this.updatePosition(true);
 		}.bind(this));
+		// update position of this handle to pick up position of parent
 		this.updatePosition(true);
 	}
 
-	relativeTo(handle) {
+	// check position of this handle relative to another handle
+	// this is useful if you want to check the direction between two handles with different parents
+	relativeTo(handle) { 
 		return {
+			// absolute positions, no matter how deeply nested
 			x: (this.x + this.origin.x) - (handle.x + handle.origin.x),
 			y: (this.y + this.origin.y) - (handle.y + handle.origin.y)
 		}
 	}
 
+	// add (one or multiple) callback(s) which are called when position of this handle changes
 	applyCallback() {
 		this.callbacks = this.callbacks.concat([].slice.call(arguments));
 	}
 
+	// add (one or multple) constraints which can modify the position of this handle when it moves
 	applyConstraint() {
 		this.constraints = this.constraints.concat([].slice.call(arguments));
-		this.updatePosition();
+		this.updatePosition(); // update position to reflect addition of new constraint(s)
 	}
 
+	// remove constraint with same constraint function applied (this works because we call bind on each constraint which creates a unique function)
 	removeConstraint(c) {
 		this.constraints.remove(c);
-		this.updatePosition();
+		this.updatePosition(); // update position to reflect removal of constraint
 	}
 
+	// apply transforms to this handle
 	applyTransformations() {
+		// transforms are absolute positions
 		let transform = `
 			translate(${this.origin.x + this.x}, ${this.origin.y + this.y}) 
 			rotate(${radToDeg(this.rotation || 0)})
@@ -680,10 +706,12 @@ class Handle {
 		this.element.setAttribute('transform', transform);
 	}
 
+	// move this handle by (dx, dy), w/ constraints applied of course
 	move(dx, dy, doActivateCallbacks) {
 		this.setPosition(this._x + dx, this._y + dy, doActivateCallbacks);
 	}
 
+	// set position of this handle to (x, y), w/ constraints applied of course
 	setPosition(x, y, doActivateCallbacks) {
 		this._x = x;
 		this._y = y;
@@ -691,67 +719,84 @@ class Handle {
 		this.updatePosition(doActivateCallbacks)
 	}
 
+	// update position of handle and apply constraints
 	updatePosition(doActivateCallbacks) {
+		// new position before constraints are applied
 		let newPos = {x: this._x, y: this._y};
 
-		if(this.dragging) {
+		// apply constraints only if being dragged
+		if(this.dragging) { // BUG: for some reason this doesn't work?
 			this.constraints.forEach(function(fn) {
-				newPos = fn(newPos);
+				newPos = fn(newPos); // each constraint modifies position
 			});
 		}
 
+		// set position to constraint-modified position
 		this.x = newPos.x;
 		this.y = newPos.y;
 
+		// there are some cases in which we don't want to update callbacks when we update position
 		if(doActivateCallbacks) {
 			this.activateCallbacks();
 		}
 
+		// apply transformations so that we can see changes
 		this.applyTransformations();
 	}
 
+	// activate all callbacks, passing this handle as an argument
 	activateCallbacks() {
 		this.callbacks.forEach(function(callback) {
 			callback(this);
 		}.bind(this));
 	}
 
+	// show this handle
 	show() {
+		if(disabled) return; // do not show if disabled
+
 		this.element.classList.remove('hidden');
-		if(this.handle) this.handle.show();
+		if(this.handle) this.handle.show(); // show rotation handle if exists
 	}
 
+	// hide this handle
 	hide() {
 		this.element.classList.add('hidden');
-		if(this.handle) this.handle.hide();
+		if(this.handle) this.handle.hide(); // hide rotation handle if exists
 	}
 
+	// disable this handle, does not allow it to be shown
 	disable() {
 		this.disabled = true;
-		if(this.handle) this.handle.disable();
-		this.hide();
+		if(this.handle) this.handle.disable(); // disable rotation handle if exists
+		this.hide(); // hide handle, will not unhide until handle is enabled again
 	}
 
+	// enable this handle, allowing it to show/hide normally
 	enable() {
 		this.disabled = false;
-		if(this.handle) this.handle.enable();
-		this.show();
+		if(this.handle) this.handle.enable(); // enable rotation handle if exists
+		this.show(); // show handle, now acts normally
 	}
 
+	// add rotation to this handle, controlled by child rotation handle
 	_initRotationalHandle(rotation) {
 		this.rotation = rotation || 0;
 		this.element.classList.add('rotation');
 
+		// create rotation handle
 		this.handle = new Handle(20, 0);
-		this.handle.parent(this);
-		this.handle.applyConstraint(constraints.distance.bind(null, 20));
+		this.handle.parent(this); // set position relative to this handle
+		this.handle.applyConstraint(constraints.distance.bind(null, 20)); // constrain to circle around this handle (r=20px)
 		this.handle.applyCallback(this._updateRotation.bind(this));
 		this.handle.element.classList.add('rotationhandle');
 	}
 
+	// update rotation
 	_updateRotation() {
+		// rotation = direction between this handle and it's rotation handle (since rotation handle is relative to this handle all we need is direction from {0, 0})
 		this.rotation = direction({x: 0, y: 0}, this.handle);
-		this.applyTransformations();
+		this.applyTransformations(); // apply new rotation to this handle
 	}
 
 	_render() {
@@ -759,12 +804,14 @@ class Handle {
 			svg('circle', {
 				cx: 0, cy: 0, r: 7,
 			}),
+			// create line pointing in rotation direction (only shown when rotation handle is activated)
 			svg('line', {
 				x1: 0, y1: 0, x2: 7, y2: 0,
 			})
 		]);
 		this.updatePosition();
 
+		// make this handle draggable
 		draggable(this.element, {
 			mousedown: function() {
 				this.dragging = true;
@@ -779,12 +826,14 @@ class Handle {
 			}.bind(this)
 		});
 
+		// append this element to handles element
 		handles.appendChild(this.element);
 	}
 
+	// destroy this handle
 	destroy() {
-		this.element.parentElement.removeChild(this.element);
-		if(this.handle) this.handle.destroy();
+		this.element.parentElement.removeChild(this.element); // remove handle from it's parent
+		if(this.handle) this.handle.destroy(); // destroy rotation handle if exists
 	}
 }
 
@@ -792,10 +841,14 @@ class RotationHandle extends Handle {
 	constructor(x, y, rotation) {
 		super(x, y);
 
+		// yo, that was simple
 		this._initRotationalHandle();
 	}
 }
 
+/* --------------------================-------------------- */
+/*                         Entities                         */
+/* --------------------================-------------------- */
 
 let entities = {};
 
@@ -1110,7 +1163,7 @@ class CharacterHead {
 		this.eyes = new CharacterEyes(this);
 
 		this.character.addOption(new UI.Color('headColor', '#FFE58C'));
-		this.character.options.headColor.applyCallback(this._updateColor);
+		this.character.options.headColor.applyCallback(this._updateColor.bind(this));
 
 		this._render();
 
@@ -1129,8 +1182,9 @@ class CharacterHead {
 		this.element.setAttribute('transform', `translate(${x}, ${y})`);
 	}
 
-	_updateColor() {
-
+	_updateColor(color) {
+		this.highlight.style.setProperty('fill', color);
+		this.shadow.style.setProperty('fill', shadeBlend(-0.2, color));
 	}
 
 	_render() {
@@ -1148,8 +1202,8 @@ class CharacterHead {
 			svg('g', {
 				'clip-path': `url(#headClip${this.id})`
 			}, [
-				svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
-				svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+				this.shadow = svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
+				this.highlight = svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 			
 				this.eyes.element
 			]),
@@ -1198,7 +1252,6 @@ class CharacterEyes{
 class CharacterBody {
 	constructor(character) {
 		this.character = character;
-		this.path = {};
 
 		this._initHandles();
 		this._initLimbs();
@@ -1265,27 +1318,27 @@ class CharacterBody {
 			y: this.control2.y - Math.sin((this.pos.rotation + this.control1.rotation) / 2) * (top_length + bot_length) / 4,
 		}
 
-		this.limbs.left_arm.pos = p4;
-		this.limbs.right_arm.pos = p1;
-		this.limbs.left_leg.pos = p3;
-		this.limbs.right_leg.pos = p2;
-
-		this.path.element.setAttribute('d', `
+		this.path.setAttribute('d', `
 			M ${p1.x} ${p1.y}
 			Q ${controlA.x} ${controlA.y} ${p2.x} ${p2.y}
 			L ${p3.x} ${p3.y}
 			Q ${controlB.x} ${controlB.y} ${-p1.x} ${-p1.y}
 			Z
 		`);
+
+		this.limbs.left_arm.pos = p4;
+		this.limbs.right_arm.pos = p1;
+		this.limbs.left_leg.pos = p3;
+		this.limbs.right_leg.pos = p2;
 	}
 
 	_render() {
 		this.element = svg('g.bodygroup', [
 			svg('defs', [
-				this.path.element = svg(`path #body${this.id}`),
+				this.path = svg(`path #body${this.character.id}`),
 
-				svg(`clipPath #bodyClip${this.id}`, [
-					svg('use', { href: `#body${this.id}` })
+				svg(`clipPath #bodyClip${this.character.id}`, [
+					svg('use', { href: `#body${this.character.id}` })
 				])
 			]),
 
@@ -1296,10 +1349,10 @@ class CharacterBody {
 				this.limbs.right_leg.element,
 			]),
 
-			svg('use.body-border', { href: `#body${this.id}` }),
-			svg('g', { 'clip-path': `url(#bodyClip${this.id})` }, [
-				svg('use.body-shadow', { href: `#body${this.id}`, filter: 'url(#noise)' }),
-				svg('use.body-highlight', { href: `#body${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+			svg('use.body-border', { href: `#body${this.character.id}` }),
+			svg('g', { 'clip-path': `url(#bodyClip${this.character.id})` }, [
+				svg('use.body-shadow', { href: `#body${this.character.id}`, filter: 'url(#noise)' }),
+				svg('use.body-highlight', { href: `#body${this.character.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 			]),
 		]);
 	}
@@ -1592,8 +1645,13 @@ class ImportEntity extends Entity {
 	}
 }
 
-let entityTypes = {Panel, Character, TextEntity, ImportEntity};
+let entityTypes = {Panel, TextEntity, Character, ImportEntity};
 
+/* --------------------================-------------------- */
+/*                         Hotkeys                          */
+/* --------------------================-------------------- */
+
+// CREATE: PANEL, TEXTENTITY, CHARACTER, IMPORTENTITY
 hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+1': new Panel(); break;
@@ -1604,6 +1662,7 @@ hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
 	save();
 });
 
+// MOVE: BACK, BACK1, FORWARD1, FRONT
 hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
 	if(selected === null) return;
 	switch(handler.key) {
@@ -1615,6 +1674,7 @@ hotkeys('ctrl+a, ctrl+s, ctrl+d, ctrl+f', function(event, handler) {
 	updateUI();
 });
 
+// TOGGLE_CHILD, TOGGLE_JOIN
 hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 	let hoveredEntity = entities[getClosestEntityID(mouse.target)];
 	switch(handler.key) {
@@ -1633,6 +1693,7 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 	}
 })
 
+// DELETE
 hotkeys('ctrl+shift+x', function(event, handler) {
 	if(selected != null) {
 		selected.destroy();
@@ -1642,6 +1703,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 	save();
 });
 
+// RESET
 hotkeys('ctrl+shift+m', function(event, handler) {
 	if(confirm('Are you sure you want to clear the current save?')) {
 		destroyAll();
@@ -1649,6 +1711,7 @@ hotkeys('ctrl+shift+m', function(event, handler) {
 	}
 });
 
+// UNDO, REDO
 hotkeys('cmd+z, cmd+shift+z', function(event, handler) {
 	switch(handler.key) {
 		case 'cmd+z': undo(); break;
@@ -1656,6 +1719,7 @@ hotkeys('cmd+z, cmd+shift+z', function(event, handler) {
 	}
 });
 
+// CUT, COPY, PASTE
 hotkeys('cmd+x, cmd+c, cmd+v', function(event, handler) {
 	switch(handler.key) {
 		case 'cmd+x': cut(); break;
@@ -1664,6 +1728,7 @@ hotkeys('cmd+x, cmd+c, cmd+v', function(event, handler) {
 	}
 });
 
+// SAVE, OPEN, EXPORT
 hotkeys('cmd+s, cmd+o, ctrl+p', function(event, handler) {
 	event.preventDefault();
 	switch(handler.key) {
@@ -1673,27 +1738,58 @@ hotkeys('cmd+s, cmd+o, ctrl+p', function(event, handler) {
 	}
 })
 
-paper.addEventListener('mousedown', function(e) {
-	if(e.target === paper && selected != null) {
-		selected.deselect();
-		selected = null;
+/* --------------------================-------------------- */
+/*                          Events                          */
+/* --------------------================-------------------- */
 
-		updateLayers();
-		updateInspector();
+// deselect entities when clicking background
+paper.addEventListener('mousedown', function(e) {
+	if(e.target === paper && selected !== null) {
+		selected.deselect(); // hides handles and such
+		selected = null; // no longer selected
+
+		updateUI();
 	}
 });
 
-/*setInterval(function() {
-	localStorage.setItem('data', JSON.stringify(save()));
-}, 1000);*/
-
-(function(){
-	let data = localStorage.getItem('data');
-	if(data !== null) {
-		undoStack.push(data);
-		load(JSON.parse(data));
+// zoom + pan
+paper.addEventListener('mousewheel', function(e) {
+	// prevent default zoom / scroll events
+	e.preventDefault();
+	e.stopPropagation();
+	// mousewheel event w/ e.ctrlKey in Chrome is actually pinch-zoom
+	if(e.ctrlKey) { // zoom
+		viewBox.scale += e.deltaY * viewBox.scale / 100;
+		viewBox.scale = Math.min(Math.max(viewBox.scale, 0.1), 1)
+	}else{ // pan
+		viewBox.x += e.deltaX * viewBox.scale; // multiply by scale to always pan at same rate
+		viewBox.y += e.deltaY * viewBox.scale;
 	}
-})(); // load current save
+	updateViewBox();	
+});
 
+// resize viewBox whenever screen resizes, keeps SVG same size
+window.addEventListener('resize', updateViewBox);
+window.addEventListener('load', updateViewBox);
+
+/* --------------------================-------------------- */
+/*                        Initialize                        */
+/* --------------------================-------------------- */
+
+// load current save from localStorage
+(function(){
+	let data = localStorage.getItem('data'); // get save data
+	if(data !== null) {
+		undoStack.push(data); // TODO: is this needed anymore
+		load(JSON.parse(data)); // load data
+	}
+})();
+
+// add svg element to document
+document.body.appendChild(paper);
+
+/* --------------------================-------------------- */
+/*                            Fin                           */
+/* --------------------================-------------------- */
 
 

@@ -166,6 +166,14 @@
 })(); // traverseLeafElements, getClosestEntityID
 
 
+function getShadowColor(color, darkness) {
+	let colorA = tinycolor(color).spin(-30).darken(darkness || 15);
+	let colorB = tinycolor(color).spin(30).darken(darkness || 15);
+	let shadowColor = colorA.getBrightness() < colorB.getBrightness() ? colorA : colorB;
+	return shadowColor.toString();
+}
+
+
 /* --------------------================-------------------- */
 /*                        Init Vars                         */
 /* --------------------================-------------------- */
@@ -644,6 +652,7 @@ class Handle {
 		this._y = y; // actual y position before constraints are applied
 
 		this.origin = {x: 0, y: 0};
+		this._offset = {x: 0, y: 0}; // rendering offset of handle, does not affect absolute position. Used so that some handles don't overlap important bits you're editing...
 
 		this.callbacks = [];
 		this.constraints = [];
@@ -667,6 +676,17 @@ class Handle {
 		}.bind(this));
 		// update position of this handle to pick up position of parent
 		this.updatePosition(true);
+	}
+
+	// change offset of handle rendering, ONLY affects VISUAL POSITION of handle NOT THE ACTUAL POSITION
+	offset(x, y) {
+		this._offset.x += x;
+		this._offset.y += y;
+		if(this.handle) {
+			this.handle._offset = this._offset;
+			this.handle.applyTransformations();
+		}
+		this.applyTransformations(); // update transform of handle with new offset
 	}
 
 	// check position of this handle relative to another handle
@@ -700,7 +720,7 @@ class Handle {
 	applyTransformations() {
 		// transforms are absolute positions
 		let transform = `
-			translate(${this.origin.x + this.x}, ${this.origin.y + this.y}) 
+			translate(${this.origin.x + this.x + this._offset.x}, ${this.origin.y + this.y + this._offset.y}) 
 			rotate(${radToDeg(this.rotation || 0)})
 		`;
 		this.element.setAttribute('transform', transform);
@@ -753,7 +773,7 @@ class Handle {
 
 	// show this handle
 	show() {
-		if(disabled) return; // do not show if disabled
+		if(this.disabled) return; // do not show if disabled
 
 		this.element.classList.remove('hidden');
 		if(this.handle) this.handle.show(); // show rotation handle if exists
@@ -1144,8 +1164,9 @@ class Character extends Entity {
 		this.body = new CharacterBody(this);
 
 		this.element = svg('g.character', [	
+			this.head.background,
 			this.body.element,
-			this.head.element
+			this.head.foreground,
 		]);
 
 		render.appendChild(this.element);
@@ -1161,6 +1182,7 @@ class CharacterHead {
 		this._initHandles();
 
 		this.eyes = new CharacterEyes(this);
+		this.hair = new CharacterHair(this);
 
 		this.character.addOption(new UI.Color('headColor', '#FFE58C'));
 		this.character.options.headColor.applyCallback(this._updateColor.bind(this));
@@ -1168,50 +1190,134 @@ class CharacterHead {
 		this._render();
 
 		this._updatePos();
+		this._updateColor();
 	}
 
 	_initHandles() {
 		this.pos = this.character.addHandle(new Handle(30, 0));
 		this.pos.parent(this.character.pos);
+		this.pos.offset(-this.radius, -this.radius);
 		this.pos.applyCallback(this._updatePos.bind(this));
 	}
 	
 	_updatePos() {
-		let x = this.pos.x + this.radius;
-		let y = this.pos.y + this.radius;
-		this.element.setAttribute('transform', `translate(${x}, ${y})`);
+		this.foreground.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+		this.background.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
 	}
 
-	_updateColor(color) {
+	_updateColor() {
+		let color = this.character.options.headColor.value;
+
 		this.highlight.style.setProperty('fill', color);
-		this.shadow.style.setProperty('fill', shadeBlend(-0.2, color));
+		this.shadow.style.setProperty('fill', getShadowColor(color));
 	}
 
 	_render() {
-		this.element = svg('g.headgroup', [
+		this.background = svg('g.headgroup', [
+			this.hair.back
+		]);
+
+		this.foreground = svg('g.headgroup', [
 			svg('defs', [
-				svg(`circle #head${this.id}`, {r: 25}),
-				svg(`clipPath #headClip${this.id}`, [
-					svg('use', { href: `#head${this.id}` })
+				svg(`circle #head${this.character.id}`, {r: 25}),
+				svg(`clipPath #headClip${this.character.id}`, [
+					svg('use', { href: `#head${this.character.id}` })
 					// svg('circle', { r: this.anatomy.head.radius - 2 })
-				])
+				]),
 			]),
 
-			svg('use.head-border', { href: `#head${this.id}`}),
+			svg('use.head-border', { href: `#head${this.character.id}`}),
 
 			svg('g', {
-				'clip-path': `url(#headClip${this.id})`
+				'clip-path': `url(#headClip${this.character.id})`
 			}, [
-				this.shadow = svg('use.head-shadow', { href: `#head${this.id}`, filter: 'url(#noise)' }),
-				this.highlight = svg('use.head-highlight', { href: `#head${this.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+				this.shadow = svg('use.head-shadow', { href: `#head${this.character.id}`, filter: 'url(#noise)' }),
+				this.highlight = svg('use.head-highlight', { href: `#head${this.character.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 			
 				this.eyes.element
 			]),
+
+			this.hair.front
 		]);
 	}
 }
 
-class CharacterEyes{
+class CharacterHair {
+	constructor(head) {
+		this.head = head;
+
+		this.head.eyes.pos.applyCallback(this._updatePos.bind(this));
+		this.head.eyes.pos.handle.applyCallback(this._updatePos.bind(this));
+
+		this.head.character.addOption(new UI.Select('HairType', ['A', 'B']));
+		this.head.character.options.HairType.applyCallback(this._updateType.bind(this));
+
+		this.head.character.addOption(new UI.Color('HairColor', '#333333'));
+		this.head.character.options.HairColor.applyCallback(this._updateColor.bind(this));
+
+		this._render();
+
+		this._updateType();
+	}
+
+	_updateType() {
+		switch(this.head.character.options.HairType.value) {
+			case 'A': 
+				this.hairClip.setAttribute('d', 'M27,0c0,1.2.38,4.88,0.38,6.4,0,2.07-.39,2.89-0.61,5.5s0.61,9.87.61,12.16c0,3.48,2.29,21-.38,27.94C24.55,58.39,6.85,65,0,65s-23.24-3.78-27-13c-1.53-3.73-.06-9.15-0.46-17.33-0.22-4.56.46-6.93,0.46-11.22S-27.46,14-27.46,10-27,3.19-27,0c0-16.57,12.09-30,27-30S27-16.57,27,0Z');
+				this.hairCut.setAttribute('d', 'M-146.72-61.86H156.72V81.86H17.17c5-73.57,1.28-83,1.26-83.16C17.94-4.72,16-8.71,12.65-13.56c-1.5-2.19-.76-4.1-1.77-5.16C8.19-21.5,4.62-20.06.28-20.06s-7.78-1.39-10.07.37c-1.81,1.39-1,2.55-2.26,4.75-3.5,6.21-4.45,5.53-5.39,9.17,0.18-.7-3.43,23-0.3,87.63h-129V-61.86Z');
+				break;
+			case 'B':
+				this.hairClip.setAttribute('d', 'M30-2.11a30,30,0,0,1-30,30,30,30,0,0,1-30-30c0-8.36,5.31-15.05,7.46-20.42,0.61-1.53-1.6-2.46-1.6-2.46a96.43,96.43,0,0,1,12-4.56c3-.79,7.81-2.55,12.13-2.55A29.86,29.86,0,0,1,16.77-27a1.26,1.26,0,0,0,1.9-1.3c-0.3-1.66-2.31-2.8-2.31-2.8s4.9,2,6.37,8.68C23.91-17,30-8.45,30-2.11Z');
+				this.hairCut.setAttribute('d', 'M0-20.78s-9.26,1-9.78,5.22,4.6,2.6,4.6,2.6S-7.43-7.2-13.59-7.24a8.08,8.08,0,0,1-7.79-5.2s0.82,7.56-2.43,10.33-8,3.85-8.66,9.93a68.29,68.29,0,0,1-6.41,20.45c-2.94,5.72-12.47,22-23.21,24.43s-82.06,0-82.06,0V-70.93H126.73V53.77s-43.62,5.92-61.26,0S45,34.86,42.27,25.11,40,8.5,34.73,4.83s-9.31-5.32-13.1-9S18-16.94,11.23-20C0-25,0-20.78,0-20.78Z');
+		}
+	}
+
+	_updateColor() {
+		let color = this.head.character.options.HairColor.value;
+		this.frontInner.style.setProperty('fill', color);
+		this.backInner.style.setProperty('fill', tinycolor(color).darken(50).toString());
+	}
+
+	_updatePos() {
+		let pos = this.head.eyes.pos;
+		this.hairCut.setAttribute('transform', `translate(${pos.x}, ${pos.y}) rotate(${radToDeg(pos.rotation)})`);
+	}
+
+	_render() {
+		this.back = svg('g', {
+			'clip-path': `url(#hairClip${this.head.character.id})`
+		}, [
+			svg('defs', [
+				this.hairClip = svg(`path #hairClipPath${this.head.character.id}`),
+				this.hairCut = svg(`path #hairCutPath${this.head.character.id}`),
+				svg(`clipPath #hairClip${this.head.character.id}`, [
+					svg('use', {
+						href: `#hairClipPath${this.head.character.id}`
+					}),
+				]),
+				svg(`clipPath #hairCut${this.head.character.id}`, {
+					'clip-path': `url(#hairClip${this.head.character.id})`,
+				}, [
+					svg('use', { href: `#hairCutPath${this.head.character.id}`}),
+				])
+			]),
+
+			this.backInner = svg('use.hair-back', {
+				href: `#hairCutPath${this.head.character.id}`,
+				transform: 'translate(50, 0)'
+			})
+		]);
+		
+		this.front = svg('g', {
+			'clip-path': `url(#hairCut${this.head.character.id})`
+		}, [
+			this.frontInner = svg('use.hair-front', { href: `#hairCutPath${this.head.character.id}` }),
+			svg('use.hair-border', { href: `#hairClipPath${this.head.character.id}` })
+		])
+	}
+}
+
+class CharacterEyes {
 	constructor(head) {
 		this.head = head;
 
@@ -1225,13 +1331,14 @@ class CharacterEyes{
 	_initHandles() {
 		this.pos = this.head.character.addHandle(new RotationHandle(60, 25));
 		this.pos.parent(this.head.pos);
+		this.pos.offset(30, 0);
 		this.pos.applyCallback(this._updatePos.bind(this));
 		this.pos.handle.applyCallback(this._updatePos.bind(this));
 	}
 
 	_updatePos() {
-		let x = this.pos.x - this.head.radius - 30;
-		let y = this.pos.y - this.head.radius;
+		let x = this.pos.x;
+		let y = this.pos.y;
 		let rotation = radToDeg(this.pos.rotation);
 		this.element.setAttribute('transform', `translate(${x}, ${y}) rotate(${rotation})`);
 	}
@@ -1256,10 +1363,14 @@ class CharacterBody {
 		this._initHandles();
 		this._initLimbs();
 
+		this.character.addOption(new UI.Color('BodyColor', '#FF8000'));
+		this.character.options.BodyColor.applyCallback(this._updateColor.bind(this));
+
 		this._render();
 
 		this._updatePos();
 		this._updatePath();
+		this._updateColor();
 	}
 
 	_initHandles() {
@@ -1289,6 +1400,12 @@ class CharacterBody {
 
 	_updatePos() {
 		this.element.setAttribute('transform', `translate(${this.pos.x}, ${this.pos.y})`);
+	}
+
+	_updateColor() {
+		let color = this.character.options.BodyColor.value;
+		this.highlight.style.setProperty('fill', color);
+		this.shadow.style.setProperty('fill', getShadowColor(color, 5));
 	}
 
 	_updatePath() {
@@ -1351,8 +1468,8 @@ class CharacterBody {
 
 			svg('use.body-border', { href: `#body${this.character.id}` }),
 			svg('g', { 'clip-path': `url(#bodyClip${this.character.id})` }, [
-				svg('use.body-shadow', { href: `#body${this.character.id}`, filter: 'url(#noise)' }),
-				svg('use.body-highlight', { href: `#body${this.character.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
+				this.shadow = svg('use.body-shadow', { href: `#body${this.character.id}`, filter: 'url(#noise)' }),
+				this.highlight = svg('use.body-highlight', { href: `#body${this.character.id}`, filter: 'url(#blur)', x: 5, y: -5 }),
 			]),
 		]);
 	}
@@ -1445,8 +1562,9 @@ class TextEntity extends Entity {
 			'roundedRectangle',
 			'rectangle',
 			'ellipse',
-			'cloud', 
-			'scream',
+			'none'
+			//'cloud', 
+			//'scream',
 		]));
 		this.options.shape.applyCallback(this._updateShape.bind(this));
 
@@ -1504,6 +1622,10 @@ class TextEntity extends Entity {
 				this.bubble.setAttribute('rx', this.scale.x / 2);
 				this.bubble.setAttribute('ry', this.scale.y / 2);
 				break;
+			case 'none':
+				if(replace) { __setBubbleElement(
+					svg('g')
+				) }
 		}
 		this._updatePos();
 	}

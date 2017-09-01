@@ -5,20 +5,24 @@
 ## General
 
 [X] ~~Tidy up TODO list~~
-[?] ADD COMMENTS TO EVERYTHING
+[X] ~~ADD COMMENTS TO EVERYTHING~~
+[ ] ADD MORE COMMENTS
 [ ] Support older browsers
-[ ] Design actual pages on paper
-[ ] Export HTML
+[2] Design actual pages on paper
+[X] Export HTML
+[X] Export CSS
 [ ] Export JS
 [X] ~~Save to filesystem~~
 [ ] Load from filesystem
 [?] Inline Styles ???
+[X] Offset handles
 
 ## Bugs
 
 [ ] Fix handles snapping when not being dragged
 [ ] Fix Entities not toggling back in Panel on undo/redo
 [ ] Pull copy/paste out of panel
+[ ] Fix update scale on ImportEntity
 
 ## Entities
 [-] Select multiple entities
@@ -39,18 +43,31 @@
 [ ] Some sort of Markdown format for TextEntity
 [ ] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
 [-] Add new shapes / shape modifications for speech bubbles
+    [ ] no shape!
+[ ] Tail type select box
+    [ ] Option to convert tail to connector (tail type?)
 [ ] Tail curving
-[ ] Join two speech bubbles, second speech bubble forms connector
+[X] Join two speech bubbles
+[ ] separate TextEntity into seperate classes
+
 
 ## Character
 [!] Scaling Character
 [ ] Shirt Logo for Character
 [?] Mouth for Character
-[-] Hats & Hair for Character
+[X] Hair for Character
+[X] Seperate hair into class
+[-] Hats for Character
+[X] Seperate character into multiple classes
+[X] Change skin color
+[X] Change body color
+[X] Change hair color
+[ ] hair shading?
 
 ## ImportEntity
-[ ] Load image from directory
-[ ] Scaling (locked to aspect ratio) + Rotation
+[X] Load image from directory
+[X] Scaling (locked to aspect ratio)
+[ ] Rotation
 
 ## Artboards
 [ ] Create Artboard Entity

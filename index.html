@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<link rel="stylesheet" type="text/css" href="./comic-neue-2.3/font.css" />
+	<link rel="stylesheet" type="text/css" href="css/font.css" />
 
 	<style>
 		/* ---------------- */
@@ -159,6 +159,12 @@
 		.character .headgroup .eyes ellipse {
 			fill: #000000;
 		}
+		.character .headgroup .glassesgroup .lenses {
+			stroke: #000000;
+			stroke-width: 2px;
+			fill: rgba(255, 255, 255, 0.5);
+			fill: #FFFFFF;
+		}
 
 		.character .headgroup .hair-back {
 			fill: #000000;
@@ -204,18 +210,24 @@
 			fill: #FFFFFF;
 		}
 
-		.speechbubble .text, .captiongroup .text {
+		.speechbubble .text {
+			display: flex;
+			width: 100% !important;
+			height: 100% !important;
+			align-items: center;
 			margin: 0;
-			padding: 6.25px;
-			font-size: 12.5px;
+			/*padding: 3px;*/
+			
+			font-size: 15px;
 			user-select: none;
 		}
 
-		.captiongroup .caption {
-			fill: #FFFFFF;
-			stroke: #333333;
-			stroke-width: 2px;
+		.speechbubble .text > div {
+			display: block;
+			width: 100%;
+			text-align: center;
 		}
+
 
 		.extraborders {
 			pointer-events: none;
@@ -242,12 +254,15 @@
 			stroke-linejoin: round;
 		}
 	</style>
-
-	<script src="lib/hotkeys/hotkeys.js"></script>
-	<script src="lib/filesaver/FileSaver.js"></script>
-	<script src="lib/tinycolor.min.js"></script>
 </head>
 <body>
+	<script src="_lib/hotkeys/hotkeys.js"></script>
+	<script src="_lib/filesaver/FileSaver.js"></script>
+	<script src="lib/tinycolor.min.js"></script>
+	<script src="_lib/jszip/jszip.js"></script>
+	<script src="_lib/jszip/jszip-utils.js"></script>
+	<script src="_lib/beautify.js"></script>
+
 	<div class="ui-container">
 		<div class="inspector">
 			<h2>Inspector</h2>

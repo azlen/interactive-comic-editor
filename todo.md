@@ -2,6 +2,8 @@
 
 # TODO
 
+DEADLINE: Sept. 10th
+
 ## General
 
 [X] ~~Tidy up TODO list~~
@@ -11,15 +13,21 @@
 [2] Design actual pages on paper
 [X] Export HTML
 [X] Export CSS
-[ ] Export JS
+[X] Export JS
+[ ] Only variable names & classes for entities marked as interactive
+[ ] Set options and handle positions in JS export
+[X] Export as zip with images
 [X] ~~Save to filesystem~~
 [ ] Load from filesystem
 [?] Inline Styles ???
 [X] Offset handles
+[ ] Embed scripts to make interactive
+[ ] Sketchy graphics??
 
 ## Bugs
 
 [ ] Fix handles snapping when not being dragged
+    [ ] handles still need to snap, just not when their parents are being dragged
 [ ] Fix Entities not toggling back in Panel on undo/redo
 [ ] Pull copy/paste out of panel
 [ ] Fix update scale on ImportEntity
@@ -39,12 +47,13 @@
 
 ## TextEntity
 [?] TextEntity Height based off `<p>`?
-[ ] Better padding / text-centering for TextEntity
+[X] Text-centering for TextEntity
+[-] Use table-cell for centering
 [ ] Some sort of Markdown format for TextEntity
-[ ] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
+[-] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
 [-] Add new shapes / shape modifications for speech bubbles
-    [ ] no shape!
-[ ] Tail type select box
+    [X] no shape!
+[X] Tail type select box
     [ ] Option to convert tail to connector (tail type?)
 [ ] Tail curving
 [X] Join two speech bubbles
@@ -63,6 +72,7 @@
 [X] Change body color
 [X] Change hair color
 [ ] hair shading?
+[ ] Glasses?
 
 ## ImportEntity
 [X] Load image from directory

@@ -182,6 +182,7 @@ let defs, panelMask, disruptMask, render, extraBorders, handles;
 let selected = null;
 
 let imageDirectory = '../images/';
+imageDirectory = '/Documents/Explorable Explanations/Backwords/images/'
 
 let undoStack = [];
 let redoStack = [];
@@ -293,7 +294,7 @@ function saveToFileSystem() {
 }
 
 function download(text, filename) {
-	var blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+	let blob = new Blob([text], {type: "text/plain;charset=utf-8"});
 	saveAs(blob, filename);
 }
 
@@ -408,19 +409,258 @@ function paste() {
 	save();
 }
 
-function exportHTML() {
-	let styleElement, svgElement;
+function exportAll() {
+	JSZipUtils.getBinaryContent('_export.zip', function(err, data) {
+	    if(err) {
+	        throw err; // or handle err
+	    }
+
+	    // let zip = new JSZip(data);
+
+	    JSZip.loadAsync(data, { createFolders: true }).then(function (zip) {
+
+	    	zip = zip.folder('_export');
+
+	    	
+			let js = zip.folder('js');
+
+			Promise.resolve(zip)
+				.then(exportJS)
+				.then(exportImages)
+				.then(exportHTML)
+				.then(function() {
+					zip.generateAsync({type:"blob"}).then(function(content) {
+						saveAs(content, "COMIX_EXPORT.zip");
+					});
+				});
+	    });
+	});
+}
+
+function exportImages(zip) {
+	let promise = Promise.resolve(zip);
+
+	let imageFolder = zip.folder('images');
+
+	let images = [].slice.call(paper.querySelectorAll('image'));
+	for(let i in images) {
+		let href = images[i].getAttribute('href');
+		let name = href.replace(/.*\//, '');
+
+		promise = promise.then(function(zip) {
+			return new Promise(function(resolve, reject) {
+				JSZipUtils.getBinaryContent(href, function (err, data) {
+					if(err) {
+						throw err; // or handle the error
+					}
+					zip.folder('images').file(name, data, {binary:true});
+					console.log('IMAGE');
+					resolve(zip);
+				});
+			});
+		});
+	}
+
+	console.log(promise);
+
+	return promise;
+}
+
+function exportHTML(zip) {
+	let headElement, svgElement;
 	let htmlElement = h('html', [
-		h('head', [
-			styleElement = h('style')
-		]),
+		headElement = h('head'),
 		h('body', [
-			svgElement = svg('svg.paper')
+			svgElement = svg('svg.paper'),
+			h('script', {src: 'js/_util.js'}),
+			h('script', {src: 'js/_init.js'}),
 		])
 	]);
-	styleElement.innerHTML = document.head.querySelector('style').innerHTML;
+	headElement.innerHTML = document.head.innerHTML;
 	svgElement.innerHTML = defs.outerHTML + render.outerHTML;
-	download(htmlElement.outerHTML, 'exportHTML.html');
+	
+	let images = [].slice.call(svgElement.querySelectorAll('image'));
+	for(let i in images) {
+		let href = images[i].getAttribute('href');
+		let name = href.replace(/.*\//, '');
+
+		images[i].setAttribute('href', 'images/' + name);
+	}
+
+	zip.file('index.html', htmlElement.outerHTML)
+
+	return zip;
+}
+
+/*function exportJS() {
+	let classes = {};
+	function addClass(entity) {
+		if(!classes.hasOwnProperty(entity.constructor.name)) {
+			let c = classes[entity.constructor.name] = {
+				functions: []
+			};
+
+			Object.keys(entity).forEach(function(variableName) {
+				let variable = entity[variableName];
+				if(variable) {
+					if(variable.tagName) { // is Element
+						// console.log(variable)
+					} else if(variable.constructor === Handle) {
+						/*variable.callbacks.forEach(function(fn) {
+							let name = fn.name.slice(6);
+							if(name !== '') {
+								let fn_str = entity[name].toString();
+								c.functions.push(fn_str);
+							}
+						})*
+					} else if(entityTypes.hasOwnProperty(variable.constructor.name)) {
+
+					} else if(subEntityTypes.hasOwnProperty(variable.constructor.name)) {
+						addClass(variable);
+					}
+				} else {
+
+				}
+			})
+		}
+	}
+	Object.values(entities).forEach(function(entity) {
+		addClass(entity);
+	});
+	return classes;
+}*/
+
+function exportJS(zip) {
+	let _classes = {};
+	let _entityCode = [];
+
+	let jsFolder = zip.folder('js');
+
+	// initialize class objects and add update functions
+	function addClass(_CLASS, opts) {
+		opts = Object.assign({}, opts);
+		if(opts.saveWhole) {
+			_classes[_CLASS.name] = _CLASS.toString();
+		} else {
+			let c = _classes[_CLASS.name] = {
+				fns: {}
+			};
+
+			let input = _CLASS.toString();
+			let callbackRegex = /([^\t]+)\.applyCallback\(this\.([^;\n]+)\.bind\((.*)\)\)/g; // match instances of calling .applyCallback()
+			let plusRegex = /((?:(?:set|get) )?\w*)\(.*\)\s*\{?\s*\/\*\++\*\/|\/\*\++\*\/\s*((?:(?:set|get) )?\w*)/g;
+			let optionRegex = /(this.*addOption)\(.*\((['"]\w+['"]).*/g
+
+			function addClassFunction(name) {
+				// if(name === 'constructor') {
+				let fn_regex = new RegExp(String.raw`${name}\([^\(\)]*\)\s*\{[\s\S]*?\n\t\}`);
+				let match = _CLASS.toString().match(fn_regex);
+				if(match !== null) {
+					let fn_str = match[0].replace(optionRegex, '$1(new Option($2));')
+					if(name === 'constructor') {
+						c.fns[`_${name}`] = fn_str;
+					} else {
+						c.fns[name] = fn_str;
+					}
+					
+				}
+				/*} else {
+					if(!_CLASS.prototype.hasOwnProperty(name)) return;
+					let fn = _CLASS.prototype[name];
+					c.fns[fn.name] = fn.toString();
+				}*/
+			}
+
+			c.def = opts.def || input.match(/^.*?(?=\{)/)[0];
+
+			let matches;
+			
+			while(matches = callbackRegex.exec(input)) {
+				addClassFunction(matches[2]);
+			}
+
+			while(matches = plusRegex.exec(input)) {
+				addClassFunction(matches[1] || matches[2]);
+			}
+		}
+	}
+	addClass(UI._Element, {def: 'class Option '})
+	addClass(Handle);
+	addClass(RotationHandle, {saveWhole: true});
+	addClass(Visual, {saveWhole: true});
+	addClass(Entity);
+	Object.values(Object.assign({}, entityTypes, subEntityTypes)).forEach(addClass);
+
+	// find vars for class constructors
+	let _id = 0;
+	function addClassVars(entity, parent, crumb) {
+		crumb = crumb || '';
+
+		let c = _classes[entity.constructor.name];
+		// if(!c.init) {
+		c.init = [];
+		c.args = [];
+		c.isEntityType = true;
+
+		if(crumb === '') {
+			crumb = `v${_id++}`;
+			_entityCode.push(`
+				let ${crumb} = new ${entity.constructor.name}();
+			`);
+		}
+
+		function iterateOverVars(obj, crumb2) {
+			crumb2 = crumb2 || ''
+			Object.keys(obj).forEach(function(variableName) {
+				let v = obj[variableName];
+				if(v) {
+					if(v.tagName) { // variable is element
+						if(!v.hasAttribute('id')) v.setAttribute('id', `E${_id++}`);
+
+						_entityCode.push(`
+							${crumb}${crumb2}.${variableName} = $("#${v.getAttribute('id')}");
+						`);
+					} else if(v.constructor === Handle) {
+						
+					} else if(subEntityTypes.hasOwnProperty(v.constructor.name)) {
+						if(v !== parent) {
+							addClassVars(v, entity, `${crumb}${crumb2}.${variableName}`);
+						}
+					} else if(v.constructor === Object) {
+						iterateOverVars(v, `${crumb2 || ''}.${variableName}`);
+					}
+				}
+			});
+		}
+		
+		iterateOverVars(entity);
+		// }
+	}
+	Object.values(entities).forEach(function(entity) {
+		addClassVars(entity);
+	});
+
+	// generate final class strings
+	let generatedClasses = Object.values(_classes).map(function(c) {
+		if(c.constructor === String) return c;
+		let output = `${c.def} {
+			${Object.values(c.fns).join('\n\n')}
+		}`;
+		return output;
+
+	}).join('\n\n').replace(/.*\/\*~+\*\/.*/g, ''); // |\/\*\++\*\/
+	
+	let finalCode = `
+		${generatedClasses}
+		${_entityCode.join('')}
+	`
+
+	jsFolder.file('_init.js', js_beautify(finalCode, {
+		"indent_with_tabs": true,
+		"preserve_newlines": false,
+	}));
+
+	return zip;
 }
 
 function destroyAll() {
@@ -437,20 +677,20 @@ function destroyAll() {
 var UI = {};
 
 UI._Element = class { // UI element base class 
-	constructor(name) {
+	constructor(name) { /*++++*/
 		this.name = name; // name used in inspector element
 
 		// render UI element (with all extra arguments passed into this constructor, basically arguments minus "name")
-		this._render.apply(this, [].slice.call(arguments, 1));
+		/*~~~*/ this._render.apply(this, [].slice.call(arguments, 1));
 		// create inspector element to display both name and input in inspector
-		this.inspector_element =  h('.item', `${this.name}: `, this.element);
+		/*~~~*/ this.inspector_element =  h('.item', `${this.name}: `, this.element);
 
 		// initialize variables
 		this.callbacks = [];
 		this._value;
 
 		// pull value from HTML to set the initial value in this UI element
-		this._html2value();
+		/*~~~*/ this._html2value();
 	}
 
 	_html2value() { // set value to element value
@@ -479,25 +719,29 @@ UI._Element = class { // UI element base class
 		}.bind(this));
 	}
 
-	applyCallback() { // add (one or multiple) callback(s) to trigger when value changes for this UI element
+	// add (one or multiple) callback(s) to trigger when value changes for this UI element
+	applyCallback() { /*++++*/
 		this.callbacks = this.callbacks.concat([].slice.call(arguments));
 	}
 
-	activateCallbacks(newValue) { // activate each callback on this UI element and feed it new value
+	// activate each callback on this UI element and feed it new value
+	activateCallbacks(newValue) { /*++++*/
 		this.callbacks.forEach(function(callback) {
 			callback(newValue);
 		});
 	}
 
-	get value() { // get value of this UI element
+	// get value of this UI element
+	get value() { /*++++*/
 		return this._value;
 	}
- 
-	set value(newValue) { // set value of this UI element and activate callbacks listening for changes
+ 	
+ 	// set value of this UI element and activate callbacks listening for changes
+	set value(newValue) { /*++++*/
 		if(this._value !== newValue) { // only set value + apply callbacks IF THE VALUE HAS ACTUALLY CHANGED
 			this._value = newValue; // set value
 			this.activateCallbacks(this._value); // activate callbacks
-			this._value2html(this._value); // update HTML value (in case value has been set through javascript)
+			/*~~~*/ this._value2html(this._value); // update HTML value (in case value has been set through javascript)
 		}
 		return this._value;
 	}
@@ -644,7 +888,7 @@ let constraints = {
 /* --------------------================-------------------- */
 
 class Handle {
-	constructor(x, y) {
+	constructor(x, y) { /*++++*/
 		this.x = x;
 		this.y = y;
 
@@ -652,19 +896,19 @@ class Handle {
 		this._y = y; // actual y position before constraints are applied
 
 		this.origin = {x: 0, y: 0};
-		this._offset = {x: 0, y: 0}; // rendering offset of handle, does not affect absolute position. Used so that some handles don't overlap important bits you're editing...
+		/*~~~*/ this._offset = {x: 0, y: 0}; // rendering offset of handle, does not affect absolute position. Used so that some handles don't overlap important bits you're editing...
 
 		this.callbacks = [];
 		this.constraints = [];
 
-		this.disabled = false;
-		this.dragging = false;
+		/*~~~*/ this.disabled = false;
+		/*~~~*/ this.dragging = false;
 
-		this._render();
+		/*~~~*/ this._render();
 	}
 
 	// make position of this handle relative to specified parent handle
-	parent(handle) { 
+	parent(handle) { /*++++*/
 		this.origin = {
 			// absolute origin, no matter how deeply nested
 			get x() { return handle.x + handle.origin.x; },
@@ -689,19 +933,30 @@ class Handle {
 		this.applyTransformations(); // update transform of handle with new offset
 	}
 
+	// get absolute position of handle
+	getAbsolute() { /*++++*/
+		return {
+			// absolute position, no matter how deeply nested
+			x: this.x + this.origin.x,
+			y: this.y + this.origin.y
+		}
+	}
+
 	// check position of this handle relative to another handle
 	// this is useful if you want to check the direction between two handles with different parents
 	relativeTo(handle) { 
 		return {
 			// absolute positions, no matter how deeply nested
-			x: (this.x + this.origin.x) - (handle.x + handle.origin.x),
-			y: (this.y + this.origin.y) - (handle.y + handle.origin.y)
+			x: this.getAbsolute().x - handle.getAbsolute().x,
+			y: this.getAbsolute().y - handle.getAbsolute().y
 		}
 	}
 
 	// add (one or multiple) callback(s) which are called when position of this handle changes
-	applyCallback() {
-		this.callbacks = this.callbacks.concat([].slice.call(arguments));
+	applyCallback() { /*++++*/
+		[].slice.call(arguments).forEach(function(fn) {
+			this.callbacks.push(fn);
+		}.bind(this));
 	}
 
 	// add (one or multple) constraints which can modify the position of this handle when it moves
@@ -727,12 +982,12 @@ class Handle {
 	}
 
 	// move this handle by (dx, dy), w/ constraints applied of course
-	move(dx, dy, doActivateCallbacks) {
+	move(dx, dy, doActivateCallbacks) { /*++++*/
 		this.setPosition(this._x + dx, this._y + dy, doActivateCallbacks);
 	}
 
 	// set position of this handle to (x, y), w/ constraints applied of course
-	setPosition(x, y, doActivateCallbacks) {
+	setPosition(x, y, doActivateCallbacks) { /*++++*/
 		this._x = x;
 		this._y = y;
 
@@ -740,16 +995,16 @@ class Handle {
 	}
 
 	// update position of handle and apply constraints
-	updatePosition(doActivateCallbacks) {
+	updatePosition(doActivateCallbacks) { /*++++*/
 		// new position before constraints are applied
 		let newPos = {x: this._x, y: this._y};
 
 		// apply constraints only if being dragged
-		if(this.dragging) { // BUG: for some reason this doesn't work?
-			this.constraints.forEach(function(fn) {
-				newPos = fn(newPos); // each constraint modifies position
-			});
-		}
+		// if(this.dragging) { // BUG: for some reason this doesn't work?
+		this.constraints.forEach(function(fn) {
+			newPos = fn(newPos); // each constraint modifies position
+		});
+		// }
 
 		// set position to constraint-modified position
 		this.x = newPos.x;
@@ -761,11 +1016,11 @@ class Handle {
 		}
 
 		// apply transformations so that we can see changes
-		this.applyTransformations();
+		/*~~~*/ this.applyTransformations();
 	}
 
 	// activate all callbacks, passing this handle as an argument
-	activateCallbacks() {
+	activateCallbacks() { /*++++*/
 		this.callbacks.forEach(function(callback) {
 			callback(this);
 		}.bind(this));
@@ -800,23 +1055,23 @@ class Handle {
 	}
 
 	// add rotation to this handle, controlled by child rotation handle
-	_initRotationalHandle(rotation) {
+	_initRotationHandle(rotation) { /*++++*/
 		this.rotation = rotation || 0;
-		this.element.classList.add('rotation');
+		/*~~~*/ this.element.classList.add('rotation');
 
 		// create rotation handle
 		this.handle = new Handle(20, 0);
 		this.handle.parent(this); // set position relative to this handle
-		this.handle.applyConstraint(constraints.distance.bind(null, 20)); // constrain to circle around this handle (r=20px)
+		/*~~~*/ this.handle.applyConstraint(constraints.distance.bind(null, 20)); // constrain to circle around this handle (r=20px)
 		this.handle.applyCallback(this._updateRotation.bind(this));
-		this.handle.element.classList.add('rotationhandle');
+		/*~~~*/ this.handle.element.classList.add('rotationhandle');
 	}
 
 	// update rotation
 	_updateRotation() {
 		// rotation = direction between this handle and it's rotation handle (since rotation handle is relative to this handle all we need is direction from {0, 0})
 		this.rotation = direction({x: 0, y: 0}, this.handle);
-		this.applyTransformations(); // apply new rotation to this handle
+		/*~~~*/ this.applyTransformations(); // apply new rotation to this handle
 	}
 
 	_render() {
@@ -862,7 +1117,7 @@ class RotationHandle extends Handle {
 		super(x, y);
 
 		// yo, that was simple
-		this._initRotationalHandle();
+		this._initRotationHandle();
 	}
 }
 
@@ -872,27 +1127,39 @@ class RotationHandle extends Handle {
 
 let entities = {};
 
-class Entity {
+class Visual {
 	constructor() {
-		this._generateID();
+		this._beforeRender.apply(this, arguments);
+		this._render();
+		this._afterRender();
+	}
+
+	_beforeRender() { /* Override */ }
+	_afterRender() { /* Override */ }
+	_render() { /* Override */ }
+}
+
+class Entity {
+	constructor() { /*++++*/
+		/*~~~*/ this._generateID();
 
 		this.handles = [];
-
 		this.options = {};
 
 		this.currentPanel = null;
 
 		this._initPos();
 
+		this._beforeRender();
 		this._render();
-		this.element.setAttribute('id', `entity${this.id}`);
-		this.element.setAttribute('data-id', this.id);
-		this.element.setAttribute('data-type', this.constructor.name);
+		this._afterRender();
 
-		this._initDisrupt();
+		/*~~~*/ this.element.setAttribute('id', `entity${this.id}`);
+		/*~~~*/ this.element.setAttribute('data-id', this.id);
+		/*~~~*/ this.element.setAttribute('data-type', this.constructor.name);
 
-		this._makeSelectable();
-		this.select();
+		/*~~~*/ this._makeSelectable();
+		/*~~~*/ this.select();
 	}
 
 	_generateID() {
@@ -900,17 +1167,17 @@ class Entity {
 		entities[this.id] = this;
 	}
 
-	addOption(uiElement) {
-		this.options[uiElement.name] = uiElement;
-		updateUI();
-		return uiElement;
+	addOption(option) { /*++++*/
+		this.options[option.name] = option;
+		/*~~~*/ updateUI();
+		return option;
 	}
 
-	addHandle(handle, snapOnShift) {
+	addHandle(handle, snapOnShift) { /*++++*/
 		this.handles.push(handle);
-		if(snapOnShift !== false) {
-			handle.applyCallback(constraints.shiftActivate.bind(null, constraints.snapToGrid.bind(null, 12.5)));
-		}
+		/*~~~*/ if(snapOnShift !== false) {
+		/*~~~*/ 	handle.applyConstraint(constraints.shiftActivate.bind(null, constraints.snapToGrid.bind(null, 12.5)));
+		/*~~~*/ }
 		return handle;
 	}
 
@@ -953,14 +1220,15 @@ class Entity {
 		this.element.classList.remove('selected');
 	}
 
-	_initPos() {
-		this.pos = this.addHandle(new Handle(mouse.x, mouse.y));
+	_initPos() { /*++++*/
+		this.pos = this.addHandle(new Handle(0, 0));
 		this.pos.applyCallback(this._updatePos.bind(this));
-		this.pos.element.classList.add('move');
+		/*~~~*/ this.pos.element.classList.add('move');
 	}
 
 	_updatePos() {
-		let pos = this._convertPointToLocalCoords(this.pos);
+		let pos = this.pos;
+		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
@@ -996,93 +1264,30 @@ class Entity {
 		// this.maskElement.parentElement.appendChild(this.maskElement);
 	}
 
-	_initDisrupt() {
-		/* this.addOption(new UI.Bool('disruptPanel', false));
-		this.options.disruptPanel.applyCallback(this._updateDisruptPanel.bind(this));
+	_beforeRender() { /*++++*/ }
+	_afterRender() { /*++++*/ }
+	_render() { /*++++*/ }
 
-		this.addOption(new UI.Slider('disruptAmount'));
-		this.options.disruptAmount.toggleWith(this.options.disruptPanel);
-
-		this.maskElement = svg(`g.disrupt-mask`);
-		disruptMask.appendChild(this.maskElement);
-
-		this.extraBorder = svg('g');
-		extraBorders.appendChild(this.extraBorder);
-
-		traverseLeafElements(this.element, function(element) {
-			if(element.tagName !== 'use' && !element.classList.contains('fill')) {
-				if(element.getAttribute('id') === null) {
-					element.setAttribute('id', id());
-				}
-				let bbox = element.getBoundingClientRect();
-				let originalStrokeWidth = Number(getComputedStyle(element)['stroke-width'].slice(0, -2));
-				let maskBorderID = id();
-				let maskFillID = id();
-
-				this.maskElement.insertBefore( svg(`use #${maskBorderID}`, {
-					href: `#${element.getAttribute('id')}`,
-					transform: `translate(${bbox.left}, ${bbox.top})`,
-					stroke: 'black',
-					fill: 'none',
-					'stroke-width': originalStrokeWidth + 25
-				}), this.maskElement.firstElementChild);
-				this.maskElement.appendChild( svg(`use #${maskFillID}`, {
-					href: `#${element.getAttribute('id')}`,
-					transform: `translate(${bbox.left}, ${bbox.top})`,
-					stroke: 'none',
-					fill: 'white'
-				}) );
-
-				this.extraBorder.insertBefore( svg(`use`, {
-					href: `#${maskBorderID}`,
-					'stroke-width': originalStrokeWidth + 29
-				}), this.extraBorder.firstElementChild );
-				this.extraBorder.appendChild( svg(`use`, { href: `#${maskFillID}` }) );
-			}
-		}.bind(this));*/
-
-		
-
-		/*
-
-		this.extraBorder = svg('use.disrupt-extra-border', {
-			href: `#entity${this.id}`,
-			// filter: 'url(#dilate-border)',
-			'stroke': '#333333',
-			'stroke-width': 16.5
-		});
-		*/
-	}
-
-	_updateDisruptPanel() {
-
-	}
-	
-	_render() {
-		// Override
-	}
-
-	destroy() {
+	destroy() { /*++++*/
 		if(this.ondestroy) {
 			this.ondestroy();
 		}
 		this.element.parentElement.removeChild(this.element);
-		this.destroyHandles();
-		delete entities[this.id];
+		/*~~~~*/ this.destroyHandles();
+		/*~~~~*/ delete entities[this.id];
 	}
 }
 
 class Panel extends Entity {
 
-	constructor() {
-		super();
-
-		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
-		this.pos.updatePosition();
-
+	_beforeRender() { /*++++*/
 		this.entities = [];
 
 		this._initScale();
+	}
+
+	_afterRender() {
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 
 		this._updateScale();
 		this._updatePos();
@@ -1105,7 +1310,8 @@ class Panel extends Entity {
 	}
 
 	_updatePos() {
-		let pos = this._convertPointToLocalCoords(this.pos);
+		let pos = this.pos;
+		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
 		this.panel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 		this.content.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 
@@ -1114,12 +1320,12 @@ class Panel extends Entity {
 		});
 	}
 
-	_initScale() {
+	_initScale() { /*++++*/
 		this.scale = this.addHandle(new Handle(100, 100));
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
-		this.scale.applyConstraint(constraints.minimum.bind(null, 50, 50));
-		this.scale.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
+		/*~~~*/ this.scale.applyConstraint(constraints.minimum.bind(null, 50, 50));
+		/*~~~*/ this.scale.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 	}
 
 	_updateScale() {
@@ -1159,10 +1365,12 @@ class Panel extends Entity {
 }
 
 class Character extends Entity {
-	_render() {
+	_beforeRender() { /*++++*/
 		this.head = new CharacterHead(this);
 		this.body = new CharacterBody(this);
+	}
 
+	_render() {
 		this.element = svg('g.character', [	
 			this.head.background,
 			this.body.element,
@@ -1173,30 +1381,34 @@ class Character extends Entity {
 	}
 }
 
-class CharacterHead {
-	constructor(character) {
+class CharacterHead extends Visual {
+	_beforeRender(character) { /*++++*/
 		this.character = character;
 
 		this.radius = 25;
 
 		this._initHandles();
+		this._initOptions();
 
 		this.eyes = new CharacterEyes(this);
 		this.hair = new CharacterHair(this);
+		// this.glasses = new CharacterGlasses(this);
+	}
 
-		this.character.addOption(new UI.Color('headColor', '#FFE58C'));
-		this.character.options.headColor.applyCallback(this._updateColor.bind(this));
-
-		this._render();
-
+	_afterRender() {
 		this._updatePos();
 		this._updateColor();
 	}
 
-	_initHandles() {
-		this.pos = this.character.addHandle(new Handle(30, 0));
+	_initOptions() { /*++++*/
+		this.character.addOption(new UI.Color('headColor', '#FFE58C'));
+		this.character.options.headColor.applyCallback(this._updateColor.bind(this));
+	}
+
+	_initHandles() { /*++++*/
+		this.pos = this.character.addHandle(new Handle(55, 25));
 		this.pos.parent(this.character.pos);
-		this.pos.offset(-this.radius, -this.radius);
+		/*~~~*/ this.pos.offset(-this.radius, -this.radius);
 		this.pos.applyCallback(this._updatePos.bind(this));
 	}
 	
@@ -1222,7 +1434,6 @@ class CharacterHead {
 				svg(`circle #head${this.character.id}`, {r: 25}),
 				svg(`clipPath #headClip${this.character.id}`, [
 					svg('use', { href: `#head${this.character.id}` })
-					// svg('circle', { r: this.anatomy.head.radius - 2 })
 				]),
 			]),
 
@@ -1237,31 +1448,40 @@ class CharacterHead {
 				this.eyes.element
 			]),
 
+			// this.glasses.lenses,
+
 			this.hair.front
 		]);
 	}
 }
 
-class CharacterHair {
-	constructor(head) {
+class CharacterHair extends Visual {
+	_beforeRender(head) { /*++++*/
 		this.head = head;
 
 		this.head.eyes.pos.applyCallback(this._updatePos.bind(this));
-		this.head.eyes.pos.handle.applyCallback(this._updatePos.bind(this));
+		
+		this._initOptions();
+	}
 
-		this.head.character.addOption(new UI.Select('HairType', ['A', 'B']));
+	_afterRender() {		
+		this._updateType();
+	}
+
+	_initOptions() { /*++++*/
+		this.head.character.addOption(new UI.Select('HairType', ['[none]', 'A', 'B']));
 		this.head.character.options.HairType.applyCallback(this._updateType.bind(this));
 
 		this.head.character.addOption(new UI.Color('HairColor', '#333333'));
 		this.head.character.options.HairColor.applyCallback(this._updateColor.bind(this));
-
-		this._render();
-
-		this._updateType();
 	}
 
 	_updateType() {
 		switch(this.head.character.options.HairType.value) {
+			case 'none':
+				this.hairClip.setAttribute('d', '');
+				this.hairCut.setAttribute('d', '');
+				break
 			case 'A': 
 				this.hairClip.setAttribute('d', 'M27,0c0,1.2.38,4.88,0.38,6.4,0,2.07-.39,2.89-0.61,5.5s0.61,9.87.61,12.16c0,3.48,2.29,21-.38,27.94C24.55,58.39,6.85,65,0,65s-23.24-3.78-27-13c-1.53-3.73-.06-9.15-0.46-17.33-0.22-4.56.46-6.93,0.46-11.22S-27.46,14-27.46,10-27,3.19-27,0c0-16.57,12.09-30,27-30S27-16.57,27,0Z');
 				this.hairCut.setAttribute('d', 'M-146.72-61.86H156.72V81.86H17.17c5-73.57,1.28-83,1.26-83.16C17.94-4.72,16-8.71,12.65-13.56c-1.5-2.19-.76-4.1-1.77-5.16C8.19-21.5,4.62-20.06.28-20.06s-7.78-1.39-10.07.37c-1.81,1.39-1,2.55-2.26,4.75-3.5,6.21-4.45,5.53-5.39,9.17,0.18-.7-3.43,23-0.3,87.63h-129V-61.86Z');
@@ -1269,6 +1489,7 @@ class CharacterHair {
 			case 'B':
 				this.hairClip.setAttribute('d', 'M30-2.11a30,30,0,0,1-30,30,30,30,0,0,1-30-30c0-8.36,5.31-15.05,7.46-20.42,0.61-1.53-1.6-2.46-1.6-2.46a96.43,96.43,0,0,1,12-4.56c3-.79,7.81-2.55,12.13-2.55A29.86,29.86,0,0,1,16.77-27a1.26,1.26,0,0,0,1.9-1.3c-0.3-1.66-2.31-2.8-2.31-2.8s4.9,2,6.37,8.68C23.91-17,30-8.45,30-2.11Z');
 				this.hairCut.setAttribute('d', 'M0-20.78s-9.26,1-9.78,5.22,4.6,2.6,4.6,2.6S-7.43-7.2-13.59-7.24a8.08,8.08,0,0,1-7.79-5.2s0.82,7.56-2.43,10.33-8,3.85-8.66,9.93a68.29,68.29,0,0,1-6.41,20.45c-2.94,5.72-12.47,22-23.21,24.43s-82.06,0-82.06,0V-70.93H126.73V53.77s-43.62,5.92-61.26,0S45,34.86,42.27,25.11,40,8.5,34.73,4.83s-9.31-5.32-13.1-9S18-16.94,11.23-20C0-25,0-20.78,0-20.78Z');
+				break;
 		}
 	}
 
@@ -1317,21 +1538,21 @@ class CharacterHair {
 	}
 }
 
-class CharacterEyes {
-	constructor(head) {
+class CharacterEyes extends Visual {
+	_beforeRender(head) { /*++++*/
 		this.head = head;
 
 		this._initHandles();
+	}
 
-		this._render();
-
+	_afterRender() {
 		this._updatePos();
 	}
 
-	_initHandles() {
-		this.pos = this.head.character.addHandle(new RotationHandle(60, 25));
+	_initHandles() { /*++++*/
+		this.pos = this.head.character.addHandle(new RotationHandle(0, 0));
 		this.pos.parent(this.head.pos);
-		this.pos.offset(30, 0);
+		/*~~~*/ this.pos.offset(30, 0);
 		this.pos.applyCallback(this._updatePos.bind(this));
 		this.pos.handle.applyCallback(this._updatePos.bind(this));
 	}
@@ -1356,24 +1577,55 @@ class CharacterEyes {
 	}
 }
 
-class CharacterBody {
-	constructor(character) {
-		this.character = character;
+class CharacterGlasses {
+	constructor(head) {
+		this.head = head;
 
-		this._initHandles();
-		this._initLimbs();
-
-		this.character.addOption(new UI.Color('BodyColor', '#FF8000'));
-		this.character.options.BodyColor.applyCallback(this._updateColor.bind(this));
+		this.head.eyes.pos.applyCallback(this._updatePos.bind(this));
 
 		this._render();
+	}
 
+	_updatePos() {
+		let pos = this.head.eyes.pos;
+		this.lenses.setAttribute('transform', `translate(${pos.x}, ${pos.y})`)
+	}
+
+	_render() {
+		this.lenses = svg('g.glassesgroup', [
+			svg('defs', [
+				svg(`g #lenses${this.head.character.id}`, [
+					svg('rect.lens', { x: -18, y: -5, width: 16, height: 10, rx: 3, ry: 3 }),
+					svg('rect.lens', { x: 2, y: -5, width: 16, height: 10, rx: 3, ry: 3 }),
+				])
+			]),
+			svg('use.lenses', { href: `#lenses${this.head.character.id}`})
+		]);
+	}
+}
+
+class CharacterBody extends Visual {
+	_beforeRender(character) { /*++++*/
+		this.character = character;
+
+		
+		this._initHandles();
+		this._initOptions();
+		this._initLimbs();
+	}
+
+	_afterRender() {
 		this._updatePos();
 		this._updatePath();
 		this._updateColor();
 	}
 
-	_initHandles() {
+	_initOptions() { /*++++*/
+		this.character.addOption(new UI.Color('BodyColor', '#FF8000'));
+		this.character.options.BodyColor.applyCallback(this._updateColor.bind(this));
+	}
+
+	_initHandles() { /*++++*/
 		this.pos = this.character.addHandle(new RotationHandle(55, 65));
 		this.pos.parent(this.character.pos);
 		this.pos.applyCallback(this._updatePos.bind(this));
@@ -1389,7 +1641,7 @@ class CharacterBody {
 		this.control2.applyCallback(this._updatePath.bind(this));
 	}
 
-	_initLimbs() {
+	_initLimbs() { /*++++*/
 		this.limbs = {
 			'left_arm': new CharacterLimb(this, {x: -53, y: 96}, {x: -63, y: 38}),
 			'right_arm': new CharacterLimb(this, {x: 65, y: 88}, {x: 26, y: 54}),
@@ -1475,37 +1727,35 @@ class CharacterBody {
 	}
 }
 
-class CharacterLimb {
-	constructor(body, control1pos, control2pos) {
+class CharacterLimb extends Visual {
+	_beforeRender(body, control1pos, control2pos) { /*++++*/
 		this.body = body;
 		this._pos = {x: 0, y: 0};
-
-		this._render();
 
 		this._initHandles(control1pos, control2pos);
 	}
 
-	get pos() {
+	get pos() { /*++++*/
 		return this._pos;
 	}
 
-	set pos(newPos) {
+	set pos(newPos) { /*++++*/
 		this._pos = newPos;
-		this._update();
+		this._updatePath();
 		return this._pos;
 	}
 
-	_initHandles(control1pos, control2pos) {
+	_initHandles(control1pos, control2pos) { /*++++*/
 		this.control1 = this.body.character.addHandle(new Handle(control1pos.x, control1pos.y));
 		this.control1.parent(this.body.pos);
-		this.control1.applyCallback(this._update.bind(this));
+		this.control1.applyCallback(this._updatePath.bind(this));
 
 		this.control2 = this.body.character.addHandle(new Handle(control2pos.x, control2pos.y));
 		this.control2.parent(this.body.pos);
-		this.control2.applyCallback(this._update.bind(this));
+		this.control2.applyCallback(this._updatePath.bind(this));
 	}
 
-	_update() {
+	_updatePath() { /*++++*/
 		this.element.setAttribute('d', `
 			M ${this.pos.x} ${this.pos.y}
 			Q ${this.control2.x} ${this.control2.y} ${this.control1.x} ${this.control1.y}
@@ -1518,12 +1768,12 @@ class CharacterLimb {
 }
 
 class TextEntity extends Entity {
-	constructor() {
-		super();
-
-		this.pos.applyCallback(this._updateTail.bind(this));
-
+	_beforeRender() { /*++++*/
 		this.conjoinedTo = null;
+	}
+
+	_afterRender() {
+		this.pos.applyCallback(this._updateTail.bind(this));
 
 		this._initHandles();
 		this._initUI();
@@ -1652,6 +1902,8 @@ class TextEntity extends Entity {
 
 		this.textBounds.setAttribute('width', this.scale.x);
 		this.textBounds.setAttribute('height', this.scale.y);
+		// this.text.setAttribute('width', this.scale.x + 'px');
+		// this.text.setAttribute('height', this.scale.y + 'px');
 	}
 
 	_updateTail() {
@@ -1675,7 +1927,8 @@ class TextEntity extends Entity {
 	}
 
 	_updatePos() {
-		let pos = this._convertPointToLocalCoords(this.pos);
+		let pos = this.pos;
+		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
 		this.bubble.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 		this.tail.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
@@ -1702,7 +1955,9 @@ class TextEntity extends Entity {
 			
 		
 			this.textBounds = svg('foreignObject', [
-				this.text = h('p.text')
+				h('div.text', [
+					this.text = h('div')
+				])
 			])
 		]);
 
@@ -1710,14 +1965,22 @@ class TextEntity extends Entity {
 	}
 }
 
+class TextEntityBubble {
+
+}
+
+class TextEntityTail {
+
+}
+
 class ImportEntity extends Entity {
-	constructor() {
-		super();
-
-		this.pos._initRotationalHandle(0);
-
+	_beforeRender() { /*++++*/
 		this.imageSize = null;
 		this.ratioConstraint = null;
+	}
+
+	_afterRender() {
+		this.pos._initRotationHandle(0);
 
 		this.addOption(new UI.File('image'));
 		this.options.image.applyCallback(this._updateImage.bind(this));
@@ -1754,7 +2017,7 @@ class ImportEntity extends Entity {
 			this.ratioConstraint = constraints.keepRatio.bind(null, this.imageSize.width, this.imageSize.height);
 			this.scale.applyConstraint(this.ratioConstraint);
 
-			this.scale.setPosition(this.scale.x, 0);
+			this.scale.setPosition(this.scale.x, 0, true);
 		}.bind(this));
 	}
 
@@ -1768,6 +2031,7 @@ class ImportEntity extends Entity {
 }
 
 let entityTypes = {Panel, TextEntity, Character, ImportEntity};
+let subEntityTypes = {CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, /*TextEntityBubble, TextEntityTail*/}
 
 /* --------------------================-------------------- */
 /*                         Hotkeys                          */
@@ -1775,12 +2039,14 @@ let entityTypes = {Panel, TextEntity, Character, ImportEntity};
 
 // CREATE: PANEL, TEXTENTITY, CHARACTER, IMPORTENTITY
 hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
+	let entity;
 	switch(handler.key) {
-		case 'ctrl+1': new Panel(); break;
-		case 'ctrl+2': new TextEntity(); break;
-		case 'ctrl+3': new Character(); break;
-		case 'ctrl+4': new ImportEntity(); break;
+		case 'ctrl+1': entity = new Panel(); break;
+		case 'ctrl+2': entity = new TextEntity(); break;
+		case 'ctrl+3': entity = new Character(); break;
+		case 'ctrl+4': entity = new ImportEntity(); break;
 	}
+	entity.pos.setPosition(mouse.x, mouse.y, true);
 	save();
 });
 

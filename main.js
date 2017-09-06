@@ -1770,34 +1770,29 @@ class CharacterLimb extends Visual {
 class TextEntity extends Entity {
 	_beforeRender() { /*++++*/
 		this.conjoinedTo = null;
+
+		this._initOptions();
+
+		this.bubble = new TextEntityBubble(this);
+		this.tail = new TextEntityTail(this);
 	}
 
 	_afterRender() {
-		this.pos.applyCallback(this._updateTail.bind(this));
-
-		this._initHandles();
-		this._initUI();
-
 		this._updatePos();
-		this._updateScale();
-		this._updateTail();
 	}
 
 	toggleJoinTextEntity(entity) {
 		if(this.conjoinedTo === null) {
 			this.conjoinedTo = entity;
-			entity.bubbleContainer.appendChild(this.bubble);
-			entity.tailContainer.appendChild(this.tail);
+			entity.bubbleContainer.appendChild(this.bubble.element);
+			entity.tailContainer.appendChild(this.tail.element);
 		}else{
-			this.bubbleContainer.appendChild(this.bubble);
-			this.tailContainer.appendChild(this.tail);
+			this.bubbleContainer.appendChild(this.bubble.element);
+			this.tailContainer.appendChild(this.tail.element);
 		}
 	}
 
-	_initUI() {
-		this.addOption(new UI.Textarea('text'));
-		this.options.text.applyCallback(this._updateText.bind(this));
-
+	_initOptions() {
 		this.addOption(new UI.Select('type', [
 			'speechBubble',
 			'caption',
@@ -1807,30 +1802,6 @@ class TextEntity extends Entity {
 			'CUSTOM',
 		]));
 		this.options.type.applyCallback(this._updateType.bind(this));
-
-		this.addOption(new UI.Select('shape', [
-			'roundedRectangle',
-			'rectangle',
-			'ellipse',
-			'none'
-			//'cloud', 
-			//'scream',
-		]));
-		this.options.shape.applyCallback(this._updateShape.bind(this));
-
-		this.addOption(new UI.Bool('whisper', false)); // SHOULD WE CHANGE TO BORDER-TYPE?
-
-		this.addOption(new UI.Bool('showTail', true));
-		this.options.showTail.applyCallback(this._updateTail.bind(this));
-
-		this.addOption(new UI.Select('tailType', [
-			'default',
-		]));
-		this.options.tailType.toggleWith(this.options.showTail);
-		this.options.showTail.applyCallback(this._updateTail.bind(this));
-
-		this.addOption(new UI.Bool('curveTail', false));
-		this.options.curveTail.toggleWith(this.options.showTail);
 	}
 
 	_updateType(type) {
@@ -1847,101 +1818,19 @@ class TextEntity extends Entity {
 		}
 	}
 
-	_updateShape(shape) {
-		let replace = (shape !== undefined);
-		shape = (this.options.shape.value || shape);
-		let __setBubbleElement = (function (newElement) {
-			this.bubble.parentElement.replaceChild(newElement, this.bubble);
-			this.bubble = newElement;
-		}).bind(this);
-		switch(shape) {
-			case 'roundedRectangle':
-			case 'rectangle':
-				if(replace) { __setBubbleElement(
-					svg(`rect`, (shape === 'roundedRectangle' ? { rx: 10, ry: 10 } : {}) )
-				) };
-				this.bubble.setAttribute('width', this.scale.x);
-				this.bubble.setAttribute('height', this.scale.y);
-				break;
-			case 'ellipse':
-				if(replace) { __setBubbleElement(
-					svg(`ellipse`)
-				) };
-				this.bubble.setAttribute('cx', this.scale.x / 2);
-				this.bubble.setAttribute('cy', this.scale.y / 2);
-				this.bubble.setAttribute('rx', this.scale.x / 2);
-				this.bubble.setAttribute('ry', this.scale.y / 2);
-				break;
-			case 'none':
-				if(replace) { __setBubbleElement(
-					svg('g')
-				) }
-		}
-		this._updatePos();
-	}
-
-	_updateText(text) {
-		this.text.textContent = text;
-	}
-
-	_initHandles() {
-		this.scale = this.addHandle(new Handle(100, 60));
-		this.scale.parent(this.pos);
-		this.scale.applyCallback(this._updateScale.bind(this));
-
-		this.tail_base = this.addHandle(new Handle(50, 30));
-		this.tail_base.parent(this.pos);
-		this.tail_base.applyCallback(this._updateTail.bind(this));
-
-		this.tail_tip = this.addHandle(new Handle(this.pos.x + 50, this.pos.y + 100));
-		this.tail_tip.applyCallback(this._updateTail.bind(this));
-	}
-
-	_updateScale() {
-		this._updateShape();
-
-		this.textBounds.setAttribute('width', this.scale.x);
-		this.textBounds.setAttribute('height', this.scale.y);
-		// this.text.setAttribute('width', this.scale.x + 'px');
-		// this.text.setAttribute('height', this.scale.y + 'px');
-	}
-
-	_updateTail() {
-		if(!this.options.showTail.value) { // separate to different func?
-			this.tail_base.disable();
-			this.tail_tip.disable();
-			this.tail.classList.add('hidden');
-		}else{
-			this.tail_base.enable();
-			this.tail_tip.enable();
-			this.tail.classList.remove('hidden');
-		}
-		let relative_tip_pos = this.tail_tip.relativeTo(this.pos);
-		let offsetX = Math.cos(direction(relative_tip_pos, this.tail_base) + Math.PI / 2) * 10;
-		let offsetY = Math.sin(direction(relative_tip_pos, this.tail_base) + Math.PI / 2) * 10;
-		this.tail.setAttribute('points', `
-			${relative_tip_pos.x}, ${relative_tip_pos.y}
-			${this.tail_base.x + offsetX}, ${this.tail_base.y + offsetY}
-			${this.tail_base.x - offsetX}, ${this.tail_base.y - offsetY}
-		`);
-	}
-
 	_updatePos() {
-		let pos = this.pos;
-		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
-		this.bubble.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-		this.tail.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.bubble._updatePos();
+		this.tail._updatePos();
 	}
 
 	_render() {
 		this.element = svg('g.speechbubble', [
 			svg('defs', [
 				this.bubbleContainer = svg(`g #bubble${this.id}`, [
-					this.bubble = svg(`rect`, { rx: 10, ry: 10 }),
+					this.bubble.element,
 				]),
 				this.tailContainer = svg(`g #tail${this.id}`, [
-					this.tail = svg(`polygon`),
+					this.tail.element,
 				]),
 				svg(`clipPath #speechbubble${this.id}`, [
 					svg('use', { href: `#bubble${this.id}`}),
@@ -1954,23 +1843,170 @@ class TextEntity extends Entity {
 			svg('use.tail-fill', { href: `#tail${this.id}`}),
 			
 		
-			this.textBounds = svg('foreignObject', [
-				h('div.text', [
-					this.text = h('div')
-				])
-			])
+			this.bubble.textBounds
 		]);
 
 		render.appendChild(this.element);
 	}
 }
 
-class TextEntityBubble {
+class TextEntityBubble extends Visual {
+	_beforeRender(textentity) {
+		this.textentity = textentity;
 
+		this._initHandles();
+		this._initOptions();
+	}
+
+	_initOptions() {
+		this.textentity.addOption(new UI.Textarea('text'));
+		this.textentity.options.text.applyCallback(this._updateText.bind(this));
+
+		this.textentity.addOption(new UI.Select('shape', [
+			'roundedRectangle',
+			'rectangle',
+			'ellipse',
+			//'cloud', 
+			//'scream',
+			'[none]'
+		]));
+		this.textentity.options.shape.applyCallback(this._updateShape.bind(this));
+
+		this.textentity.addOption(new UI.Bool('whisper', false)); // SHOULD WE CHANGE TO BORDER-TYPE?
+	}
+
+	_initHandles() {
+		this.scale = this.textentity.addHandle(new Handle(100, 60));
+		this.scale.parent(this.textentity.pos);
+		this.scale.applyCallback(this._updateScale.bind(this));
+
+		// this.textentity.pos.applyCallback(this._updatePos.bind(this));
+	}
+
+	_updateText(text) {
+		this.text.textContent = text;
+	}
+
+	_updatePos() {
+		let pos = this.textentity.pos;
+		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+	}
+
+	_updateShape(shape) {
+		let replace = (shape !== undefined);
+		shape = (this.textentity.options.shape.value || shape);
+		let __setBubbleElement = (function (newElement) {
+			this.element.parentElement.replaceChild(newElement, this.element);
+			this.element = newElement;
+		}).bind(this);
+		switch(shape) {
+			case 'roundedRectangle':
+			case 'rectangle':
+				if(replace) { __setBubbleElement(
+					svg(`rect`, (shape === 'roundedRectangle' ? { rx: 10, ry: 10 } : {}) )
+				) };
+				this.element.setAttribute('width', this.scale.x);
+				this.element.setAttribute('height', this.scale.y);
+				break;
+			case 'ellipse':
+				if(replace) { __setBubbleElement(
+					svg(`ellipse`)
+				) };
+				this.element.setAttribute('cx', this.scale.x / 2);
+				this.element.setAttribute('cy', this.scale.y / 2);
+				this.element.setAttribute('rx', this.scale.x / 2);
+				this.element.setAttribute('ry', this.scale.y / 2);
+				break;
+			case '[none]':
+				if(replace) { __setBubbleElement(
+					svg('g')
+				) }
+		}
+		this._updatePos();
+	}
+
+	_updateScale() {
+		this._updateShape();
+
+		this.textBounds.setAttribute('width', this.scale.x);
+		this.textBounds.setAttribute('height', this.scale.y);
+	}
+
+	_render() {
+		this.element = svg(`rect`, { rx: 10, ry: 10 });
+
+		this.textBounds = svg('foreignObject', [
+			h('div.text', [
+				this.text = h('div')
+			])
+		]);
+	}
 }
 
-class TextEntityTail {
+class TextEntityTail extends Visual {
+	_beforeRender(textentity) { /*++++*/
+		this.textentity = textentity;
 
+		this._initHandles();
+		this._initOptions();
+	}
+
+	_initHandles() {
+		this.base = this.textentity.addHandle(new Handle(50, 30));
+		this.base.parent(this.textentity.pos);
+		this.base.applyCallback(this._updatePath.bind(this));
+
+		this.tip = this.textentity.addHandle(new Handle(100, 100));
+		this.tip.applyCallback(this._updatePath.bind(this));
+		
+		this.textentity.pos.applyCallback(this._updatePath.bind(this));
+		// this.textentity.pos.applyCallback(this._updatePos.bind(this));
+	}
+
+	_initOptions() {
+		this.textentity.addOption(new UI.Bool('showTail', true));
+		this.textentity.options.showTail.applyCallback(this._updatePath.bind(this));
+
+		this.textentity.addOption(new UI.Select('tailType', [
+			'default',
+		]));
+		this.textentity.options.tailType.toggleWith(this.textentity.options.showTail);
+		this.textentity.options.showTail.applyCallback(this._updatePath.bind(this));
+
+		this.textentity.addOption(new UI.Bool('curveTail', false));
+		this.textentity.options.curveTail.toggleWith(this.textentity.options.showTail);
+	}
+
+	_updatePos() {
+		let pos = this.textentity.pos;
+		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+	}
+
+	_updatePath() {
+		if(!this.textentity.options.showTail.value) { // separate to different func?
+			this.base.disable();
+			this.tip.disable();
+			this.element.classList.add('hidden');
+		}else{
+			this.base.enable();
+			this.tip.enable();
+			this.element.classList.remove('hidden');
+		}
+		let relative_tip_pos = this.tip.relativeTo(this.textentity.pos);
+		let offsetX = Math.cos(direction(relative_tip_pos, this.base) + Math.PI / 2) * 10;
+		let offsetY = Math.sin(direction(relative_tip_pos, this.base) + Math.PI / 2) * 10;
+		this.element.setAttribute('points', `
+			${relative_tip_pos.x}, ${relative_tip_pos.y}
+			${this.base.x + offsetX}, ${this.base.y + offsetY}
+			${this.base.x - offsetX}, ${this.base.y - offsetY}
+		`);
+	}
+
+	_render() {
+		this.element = svg(`polygon`);
+	}
 }
 
 class ImportEntity extends Entity {

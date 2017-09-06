@@ -2,7 +2,33 @@
 
 # TODO
 
+_feel free to be **ahead** of schedule_
+
 DEADLINE: Sept. 10th
+[ ] Script
+[ ] Design most panels on paper
+[ ] Sufficiently-featured editor
+    [ ] Character scaling
+    [-] Mouth + eyebrows?
+    [ ] Rotate images
+    [X] Export
+    [ ] Artboards
+[ ] 
+
+DEADLINE: Sept. 15th
+[ ] Fully commented
+[ ] Mobile support
+[ ] Test on older browsers
+[ ] MVP, design at least a few pages in editor, export, make interactive, work on mobile, font-scaling?
+
+DEADLINE: Sept. 20th
+[ ] Website
+[ ] All designs done + interactive
+[ ] Branch editor, no more editing until release
+
+DEADLINE: Sept. 30th
+[ ] All playtests done
+[ ] Release
 
 ## General
 
@@ -23,6 +49,7 @@ DEADLINE: Sept. 10th
 [X] Offset handles
 [ ] Embed scripts to make interactive
 [ ] Sketchy graphics??
+[ ] remove "_" from the start of like every function ever...
 
 ## Bugs
 
@@ -57,7 +84,7 @@ DEADLINE: Sept. 10th
     [ ] Option to convert tail to connector (tail type?)
 [ ] Tail curving
 [X] Join two speech bubbles
-[ ] separate TextEntity into seperate classes
+[X] separate TextEntity into seperate classes
 
 
 ## Character

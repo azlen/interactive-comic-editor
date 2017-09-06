@@ -15,30 +15,3 @@
 function $(selector) {
 	return document.querySelector(selector);
 }
-
-class Option {
-	constructor(name) {
-		this.name = name;
-		this._value;
-
-		this.callbacks = [];
-	}
-
-	applyCallback() {
-		this.callbacks = this.callbacks.concat([].slice.call(arguments));
-	}
-
-	activateCallbacks(newValue) { /*++++*/
-		this.callbacks.forEach(function(callback) {
-			callback(newValue);
-		});
-	}
-
-	get value() {
-		return this._value;
-	}
-
-	set value() {
-
-	}
-}

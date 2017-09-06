@@ -549,7 +549,7 @@ function exportJS(zip) {
 			let input = _CLASS.toString();
 			let callbackRegex = /([^\t]+)\.applyCallback\(this\.([^;\n]+)\.bind\((.*)\)\)/g; // match instances of calling .applyCallback()
 			let plusRegex = /((?:(?:set|get) )?\w*)\(.*\)\s*\{?\s*\/\*\++\*\/|\/\*\++\*\/\s*((?:(?:set|get) )?\w*)/g;
-			let optionRegex = /(this.*addOption)\(.*\((['"]\w+['"]).*/g
+			let optionRegex = /(this.*addOption)\(.*\((['"]\w+['"])[\s\S]*;/g
 
 			function addClassFunction(name) {
 				// if(name === 'constructor') {
@@ -1478,7 +1478,7 @@ class CharacterHair extends Visual {
 
 	_updateType() {
 		switch(this.head.character.options.HairType.value) {
-			case 'none':
+			case '[none]':
 				this.hairClip.setAttribute('d', '');
 				this.hairCut.setAttribute('d', '');
 				break
@@ -1792,7 +1792,7 @@ class TextEntity extends Entity {
 		}
 	}
 
-	_initOptions() {
+	_initOptions() { /*++++*/
 		this.addOption(new UI.Select('type', [
 			'speechBubble',
 			'caption',
@@ -1804,7 +1804,7 @@ class TextEntity extends Entity {
 		this.options.type.applyCallback(this._updateType.bind(this));
 	}
 
-	_updateType(type) {
+	_updateType(type) { /*++++*/
 		switch(type) {
 			case 'speechBubble':
 				this.options.shape.value = 'roundedRectangle';
@@ -1818,7 +1818,7 @@ class TextEntity extends Entity {
 		}
 	}
 
-	_updatePos() {
+	_updatePos() { /*++++*/
 		this.bubble._updatePos();
 		this.tail._updatePos();
 	}
@@ -1851,14 +1851,14 @@ class TextEntity extends Entity {
 }
 
 class TextEntityBubble extends Visual {
-	_beforeRender(textentity) {
+	_beforeRender(textentity) { /*++++*/
 		this.textentity = textentity;
 
 		this._initHandles();
 		this._initOptions();
 	}
 
-	_initOptions() {
+	_initOptions() { /*++++*/
 		this.textentity.addOption(new UI.Textarea('text'));
 		this.textentity.options.text.applyCallback(this._updateText.bind(this));
 
@@ -1875,19 +1875,17 @@ class TextEntityBubble extends Visual {
 		this.textentity.addOption(new UI.Bool('whisper', false)); // SHOULD WE CHANGE TO BORDER-TYPE?
 	}
 
-	_initHandles() {
+	_initHandles() { /*++++*/
 		this.scale = this.textentity.addHandle(new Handle(100, 60));
 		this.scale.parent(this.textentity.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
-
-		// this.textentity.pos.applyCallback(this._updatePos.bind(this));
 	}
 
 	_updateText(text) {
 		this.text.textContent = text;
 	}
 
-	_updatePos() {
+	_updatePos() { /*++++*/
 		let pos = this.textentity.pos;
 		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
@@ -1953,7 +1951,7 @@ class TextEntityTail extends Visual {
 		this._initOptions();
 	}
 
-	_initHandles() {
+	_initHandles() { /*++++*/
 		this.base = this.textentity.addHandle(new Handle(50, 30));
 		this.base.parent(this.textentity.pos);
 		this.base.applyCallback(this._updatePath.bind(this));
@@ -1962,10 +1960,9 @@ class TextEntityTail extends Visual {
 		this.tip.applyCallback(this._updatePath.bind(this));
 		
 		this.textentity.pos.applyCallback(this._updatePath.bind(this));
-		// this.textentity.pos.applyCallback(this._updatePos.bind(this));
 	}
 
-	_initOptions() {
+	_initOptions() { /*++++*/
 		this.textentity.addOption(new UI.Bool('showTail', true));
 		this.textentity.options.showTail.applyCallback(this._updatePath.bind(this));
 
@@ -1979,7 +1976,7 @@ class TextEntityTail extends Visual {
 		this.textentity.options.curveTail.toggleWith(this.textentity.options.showTail);
 	}
 
-	_updatePos() {
+	_updatePos() { /*++++*/
 		let pos = this.textentity.pos;
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
@@ -2067,7 +2064,7 @@ class ImportEntity extends Entity {
 }
 
 let entityTypes = {Panel, TextEntity, Character, ImportEntity};
-let subEntityTypes = {CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, /*TextEntityBubble, TextEntityTail*/}
+let subEntityTypes = {CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, TextEntityBubble, TextEntityTail}
 
 /* --------------------================-------------------- */
 /*                         Hotkeys                          */

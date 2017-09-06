@@ -50,6 +50,7 @@ DEADLINE: Sept. 30th
 [ ] Embed scripts to make interactive
 [ ] Sketchy graphics??
 [ ] remove "_" from the start of like every function ever...
+[ ] only pay attention to `/*++++*/` instead of applyCallbacks
 
 ## Bugs
 

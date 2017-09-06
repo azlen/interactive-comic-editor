@@ -12,7 +12,7 @@ DEADLINE: Sept. 10th
     [-] Mouth + eyebrows?
     [ ] Rotate images
     [X] Export
-    [ ] Artboards
+    [X] Artboards
 [ ] 
 
 DEADLINE: Sept. 15th
@@ -51,6 +51,8 @@ DEADLINE: Sept. 30th
 [ ] Sketchy graphics??
 [ ] remove "_" from the start of like every function ever...
 [ ] only pay attention to `/*++++*/` instead of applyCallbacks
+[ ] make save json slightly more compatible with future application versions
+[ ] Link panel between artboards for mobile support and such!
 
 ## Bugs
 
@@ -108,9 +110,12 @@ DEADLINE: Sept. 30th
 [ ] Rotation
 
 ## Artboards
-[ ] Create Artboard Entity
+[X] Create Artboard Entity
+[X] Create container subEntity
 [-] Place Entities in Artboard automatically?
 [?] Link copy (for secondary artboards?)
+[ ] Only export contents of artboards
+[ ] parent entities' positions inside artboards and panels to the position of the artboard / panel? that will fix some problems!
 
 ## Pages
 [ ] create multiple pages, switch between

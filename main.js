@@ -111,6 +111,7 @@
 
 (function() {
 	window.direction = function(p1, p2) {
+		if(!p2) { p2=p1; p1={x:0,y:0} };
 		return Math.atan2(p2.y - p1.y, p2.x - p1.x);
 	}
 
@@ -200,7 +201,11 @@ let paper = svg('svg.paper', [
 			svg('feBlend', { in: 'blend', in2: 'noisy', mode: 'multiply', result: 'blend2' }),
 			svg('feBlend', { in: 'blend2', in2: 'noisy', mode: 'multiply' }),
 		]),
-		svg('filter #dilate-subtract', [
+		svg('filter #sketchy', [
+			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 0.05, numOctaves: 3, result: 'texture' }),
+			svg('feDisplacementMap', { in: 'SourceGraphic', in2: 'texture', scale: 4, result: 'displacement' }),
+		]),
+		/*svg('filter #dilate-subtract', [
 			svg('feFlood', { floodColor: 'black', result: 'floodBlack' }),
 			svg('feMorphology', { in: 'SourceGraphic', operator: 'dilate', radius: 12.5, result: 'dilated' }),
 			svg('feComposite', { in: 'floodBlack', in2: 'dilated', operator: 'in', result: 'subtraction' }),
@@ -210,9 +215,9 @@ let paper = svg('svg.paper', [
 			svg('feFlood', { floodColor: '#333333', result: 'floodBlack' }),
 			svg('feMorphology', { in: 'SourceGraphic', operator: 'dilate', radius: 12.5, result: 'dilated' }),
 			svg('feMorphology', { in: 'dialated', operator: 'dilate', radius: 2, result: 'dilated2' }),
-			svg('feComposite', { in: 'floodBlack', in2: 'dilated2', operator: 'in'/*, result: 'subtraction' */}),
-			svg('feComposite', { in: 'subtraction', in2: 'SourceGraphic', operator: 'xor' })
-		]),
+			svg('feComposite', { in: 'floodBlack', in2: 'dilated2', operator: 'in'}), // result: 'subtraction'
+			// svg('feComposite', { in: 'subtraction', in2: 'SourceGraphic', operator: 'xor' })
+		]),*/
 		svg('mask #panelMask', { maskUnits: 'userSpaceOnUse' }, [
 			panelMask = svg('g'),
 			disruptMask = svg('g')
@@ -290,7 +295,7 @@ function save() {
 }
 
 function saveToFileSystem() {
-	download(JSON.stringify(getSaveObject()), `COMIX_${new Date() * 1}.json`)
+	download(JSON.stringify(getSaveObject()), `COMIX_${new Date() * 1}.json`);
 }
 
 function download(text, filename) {
@@ -320,8 +325,8 @@ function getSavedEntityObject(entity) {
 	for(let opt in entity.options) {
 		savedEntity.options[opt] = entity.options[opt].value;
 	}
-	if(entity.hasOwnProperty('entities') && entity.entities.length > 0) {
-		savedEntity.entities = entity.entities.map(function(ent) {
+	if(entity.hasOwnProperty('content') && entity.content.entities.length > 0) {
+		savedEntity.entities = entity.content.entities.map(function(ent) {
 			return ent.id;
 		})
 	}
@@ -355,13 +360,13 @@ function createEntityFromSaveObject(s) {
 	if(s.hasOwnProperty('entities')) {
 		s.entities.forEach(function(ent_id) {
 			if(entities.hasOwnProperty(ent_id)) {
-				entity.toggleEntity(entities[ent_id]);
+				entity.content.toggleEntity(entities[ent_id]);
 			}
 		})
 	}
 
 	if(s.hasOwnProperty('currentPanel') && entities.hasOwnProperty(s.currentPanel)) {
-		entities[s.currentPanel].toggleEntity(entity);
+		entities[s.currentPanel].content.toggleEntity(entity);
 	}
 
 	return entity;
@@ -491,44 +496,6 @@ function exportHTML(zip) {
 
 	return zip;
 }
-
-/*function exportJS() {
-	let classes = {};
-	function addClass(entity) {
-		if(!classes.hasOwnProperty(entity.constructor.name)) {
-			let c = classes[entity.constructor.name] = {
-				functions: []
-			};
-
-			Object.keys(entity).forEach(function(variableName) {
-				let variable = entity[variableName];
-				if(variable) {
-					if(variable.tagName) { // is Element
-						// console.log(variable)
-					} else if(variable.constructor === Handle) {
-						/*variable.callbacks.forEach(function(fn) {
-							let name = fn.name.slice(6);
-							if(name !== '') {
-								let fn_str = entity[name].toString();
-								c.functions.push(fn_str);
-							}
-						})*
-					} else if(entityTypes.hasOwnProperty(variable.constructor.name)) {
-
-					} else if(subEntityTypes.hasOwnProperty(variable.constructor.name)) {
-						addClass(variable);
-					}
-				} else {
-
-				}
-			})
-		}
-	}
-	Object.values(entities).forEach(function(entity) {
-		addClass(entity);
-	});
-	return classes;
-}*/
 
 function exportJS(zip) {
 	let _classes = {};
@@ -783,8 +750,8 @@ UI.Bool = class extends UI._Element { // checkbox
 }
 
 UI.Number = class extends UI._Element { // number input
-	_render() {
-		this.element = h('input', { type: 'number' });
+	_render(initialValue) {
+		this.element = h('input', { type: 'number', value: initialValue || 0 });
 		this.element.addEventListener('change', this._changed.bind(this));
 		this.element.addEventListener('input', this._html2value.bind(this));
 	}
@@ -915,12 +882,21 @@ class Handle {
 			get y() { return handle.y + handle.origin.y; }
 		};
 		// when position of parent handle changes, update position of this handle
-		handle.applyCallback(function() {
+		let callback = function() {
 			this.updatePosition(true);
-		}.bind(this));
+		}.bind(this);
+		handle.applyCallback(callback);
+
+		/*~~~*/ this.detachParent = function() {
+		/*~~~*/ 	handle.removeCallback(callback);
+		/*~~~*/ 	this.updatePosition(true);
+		/*~~~*/ }.bind(this);
+
 		// update position of this handle to pick up position of parent
 		this.updatePosition(true);
 	}
+
+	detachParent() {}
 
 	// change offset of handle rendering, ONLY affects VISUAL POSITION of handle NOT THE ACTUAL POSITION
 	offset(x, y) {
@@ -954,8 +930,12 @@ class Handle {
 
 	// add (one or multiple) callback(s) which are called when position of this handle changes
 	applyCallback() { /*++++*/
+		this.callbacks = this.callbacks.concat([].slice.call(arguments));
+	}
+
+	removeCallback(c) {
 		[].slice.call(arguments).forEach(function(fn) {
-			this.callbacks.push(fn);
+			this.callbacks.splice(this.callbacks.indexOf(fn), 1);
 		}.bind(this));
 	}
 
@@ -966,8 +946,10 @@ class Handle {
 	}
 
 	// remove constraint with same constraint function applied (this works because we call bind on each constraint which creates a unique function)
-	removeConstraint(c) {
-		this.constraints.remove(c);
+	removeConstraint() {
+		[].slice.call(arguments).forEach(function(fn) {
+			this.constraints.remove(fn);
+		}.bind(this));
 		this.updatePosition(); // update position to reflect removal of constraint
 	}
 
@@ -1227,8 +1209,8 @@ class Entity {
 	}
 
 	_updatePos() {
-		let pos = this.pos;
-		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
+		let pos = this.pos.getAbsolute();
+		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
 
@@ -1278,45 +1260,78 @@ class Entity {
 	}
 }
 
-class Panel extends Entity {
-
+class ArtBoard extends Entity {
 	_beforeRender() { /*++++*/
-		this.entities = [];
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
+
+		this.content = new ContainerEntity(this);
+
+		this._initOptions();
+	}
+
+	_afterRender() {
+		this._updateScale();
+	}
+
+	_initOptions() {
+		this.addOption(new UI.Select('size', ['desktop', 'mobile']));
+
+		this.addOption(new UI.Number('width', 100));
+		this.options.width.applyCallback(this._updateScale.bind(this));
+
+		this.addOption(new UI.Number('height', 100));
+		this.options.height.applyCallback(this._updateScale.bind(this));
+	}
+
+	_updateScale() {
+		this.board.setAttribute('width', this.options.width.value);
+		this.board.setAttribute('height', this.options.height.value);
+	}
+
+	_render() {
+		this.element = svg('g', [
+			svg('defs', [
+				this.board = svg(`rect #artBoard${this.id}`),
+
+				svg(`clipPath #artBoardClip${this.id}`, [
+					svg('use', { href: `#artBoard${this.id}` })
+				])
+			]),
+			svg('g', { 'clip-path': `url(#artBoardClip${this.id})` }, [
+				svg('use.panel', { href: `#artBoard${this.id}`, 'data-id': this.id }),
+				this.content.element,
+				svg('use.panel-border', { href: `#artBoard${this.id}`, 'data-id': this.id }),
+			])
+		]);
+
+		render.appendChild(this.element);
+	}
+
+	destroy() { }
+}
+
+class Panel extends Entity {
+	_beforeRender() { /*++++*/
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
+
+		this.content = new ContainerEntity(this);
 
 		this._initScale();
 	}
 
 	_afterRender() {
-		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
-
 		this._updateScale();
 		this._updatePos();
 	}
 
-	toggleEntity(entity) {
-		if(entity === this) return;
-		let index = this.entities.indexOf(entity);
-		if(index != -1) {
-			render.appendChild(entity.element);
-			entity.currentPanel = null;
-			this.entities.splice(index, 1);
-		}else{
-			this.content.appendChild(entity.element);
-			entity.currentPanel = this;
-			this.entities.push(entity);
-		}
-		entity._updatePos();
-		updateLayers();
-	}
-
 	_updatePos() {
-		let pos = this.pos;
-		/*~~~*/ pos = this._convertPointToLocalCoords(this.pos);
+		let pos = this.pos.getAbsolute();
+		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.panel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-		this.content.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
+		// this.content.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 
-		(this.entities || []).forEach(function(entity) {
-			entity._updatePos();
+		(this.content.entities || []).forEach(function(entity) {
+			entity.pos.updatePosition(true);
 		});
 	}
 
@@ -1336,7 +1351,7 @@ class Panel extends Entity {
 	_render() {
 		this.element = svg('g', { mask: 'url(#panelMask)' }, [
 			svg('defs', [
-				this.panel = svg(`rect #panel${this.id}`, { width: 100, height: 100 }),
+				this.panel = svg(`rect #panel${this.id}`),
 
 				svg(`clipPath #panelClip${this.id}`, [
 					svg('use', { href: `#panel${this.id}` })
@@ -1345,7 +1360,7 @@ class Panel extends Entity {
 
 			svg('g', { 'clip-path': `url(#panelClip${this.id})` }, [
 				svg('use.panel', { href: `#panel${this.id}`, 'data-id': this.id }),
-				this.content = svg('g.content'),
+				this.content.element,
 				svg('use.panel-border', { href: `#panel${this.id}`, 'data-id': this.id }),
 			])
 		]);
@@ -1361,6 +1376,36 @@ class Panel extends Entity {
 
 	ondestroy() {
 		this.maskElement.parentElement.removeChild(this.maskElement);
+	}
+}
+
+class ContainerEntity extends Visual {
+	_beforeRender(parentElement) {
+		this.parentElement = parentElement
+
+		this.entities = [];
+	}
+
+	toggleEntity(entity) {
+		if(entity === this.parentElement) return;
+		let index = this.entities.indexOf(entity);
+		if(index != -1) {
+			render.appendChild(entity.element);
+			entity.currentPanel = null;
+			entity.pos.detachParent();
+			this.entities.splice(index, 1);
+		}else{
+			this.element.appendChild(entity.element);
+			entity.currentPanel = this;
+			entity.pos.parent(this.parentElement.pos);
+			this.entities.push(entity);
+		}
+		entity.pos.updatePosition();
+		updateLayers();
+	}
+
+	_render() {
+		this.element = svg('g.content');
 	}
 }
 
@@ -1886,7 +1931,7 @@ class TextEntityBubble extends Visual {
 	}
 
 	_updatePos() { /*++++*/
-		let pos = this.textentity.pos;
+		let pos = this.textentity.pos.getAbsolute();
 		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
@@ -1957,6 +2002,7 @@ class TextEntityTail extends Visual {
 		this.base.applyCallback(this._updatePath.bind(this));
 
 		this.tip = this.textentity.addHandle(new Handle(100, 100));
+		this.tip.parent(this.textentity.pos);
 		this.tip.applyCallback(this._updatePath.bind(this));
 		
 		this.textentity.pos.applyCallback(this._updatePath.bind(this));
@@ -1991,11 +2037,12 @@ class TextEntityTail extends Visual {
 			this.tip.enable();
 			this.element.classList.remove('hidden');
 		}
-		let relative_tip_pos = this.tip.relativeTo(this.textentity.pos);
-		let offsetX = Math.cos(direction(relative_tip_pos, this.base) + Math.PI / 2) * 10;
-		let offsetY = Math.sin(direction(relative_tip_pos, this.base) + Math.PI / 2) * 10;
+		// let relative_tip_pos = this.tip.relativeTo(this.textentity.pos);
+		// let relative_base_pos = this.base.
+		let offsetX = Math.cos(direction(this.tip, this.base) + Math.PI / 2) * 10;
+		let offsetY = Math.sin(direction(this.tip, this.base) + Math.PI / 2) * 10;
 		this.element.setAttribute('points', `
-			${relative_tip_pos.x}, ${relative_tip_pos.y}
+			${this.tip.x}, ${this.tip.y}
 			${this.base.x + offsetX}, ${this.base.y + offsetY}
 			${this.base.x - offsetX}, ${this.base.y - offsetY}
 		`);
@@ -2063,8 +2110,8 @@ class ImportEntity extends Entity {
 	}
 }
 
-let entityTypes = {Panel, TextEntity, Character, ImportEntity};
-let subEntityTypes = {CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, TextEntityBubble, TextEntityTail}
+let entityTypes = {ArtBoard, Panel, TextEntity, Character, ImportEntity};
+let subEntityTypes = {ContainerEntity, CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, TextEntityBubble, TextEntityTail}
 
 /* --------------------================-------------------- */
 /*                         Hotkeys                          */
@@ -2101,7 +2148,7 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 	switch(handler.key) {
 		case 'ctrl+q':
 			if(mouse.target.classList.contains('panel') && selected != null) {
-				hoveredEntity.toggleEntity(selected);
+				hoveredEntity.content.toggleEntity(selected);
 			}
 			save();
 			break;
@@ -2128,6 +2175,7 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 hotkeys('ctrl+shift+m', function(event, handler) {
 	if(confirm('Are you sure you want to clear the current save?')) {
 		destroyAll();
+		let workspace = new ArtBoard();
 		save();
 	}
 });

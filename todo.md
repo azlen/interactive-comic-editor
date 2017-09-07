@@ -37,23 +37,22 @@ DEADLINE: Sept. 30th
 [ ] ADD MORE COMMENTS
 [ ] Support older browsers
 [2] Design actual pages on paper
-[X] Export HTML
-[X] Export CSS
-[X] Export JS
+[X] ~~Export HTML~~
+[X] ~~Export CSS~~
+[X] ~~Export JS~~
 [ ] Only variable names & classes for entities marked as interactive
 [ ] Set options and handle positions in JS export
-[X] Export as zip with images
+[X] ~~Export as zip with images~~
 [X] ~~Save to filesystem~~
 [ ] Load from filesystem
-[?] Inline Styles ???
-[X] Offset handles
+[X] ~~Offset handles~~
 [ ] Embed scripts to make interactive
-[ ] Sketchy graphics??
 [ ] remove "_" from the start of like every function ever...
 [ ] only pay attention to `/*++++*/` instead of applyCallbacks
-[ ] make save json slightly more compatible with future application versions
-[X] Link panel between artboards for mobile support and such!
-[X] Saving Symbolic Link Entities
+[X] ~~make save json slightly more compatible with future versions~~
+[X] ~~Link panel between artboards for mobile support and such!~~
+[X] ~~Saving Symbolic Link Entities~~
+[ ] Export contents of ArtBoards
 [ ] Modify export for symbolic link entities
 
 ## Bugs
@@ -98,31 +97,33 @@ DEADLINE: Sept. 30th
 [!] Scaling Character
 [ ] Shirt Logo for Character
 [?] Mouth for Character
-[X] Hair for Character
-[X] Seperate hair into class
+[X] ~~Hair for Character~~
+[X] ~~Seperate hair into class~~
 [-] Hats for Character
-[X] Seperate character into multiple classes
-[X] Change skin color
-[X] Change body color
-[X] Change hair color
+[X] ~~Seperate character into multiple classes~~
+[X] ~~Change skin color~~
+[X] ~~Change body color~~
+[X] ~~Change hair color~~
 [ ] hair shading?
 [ ] Glasses?
 
 ## ImportEntity
-[X] Load image from directory
-[X] Scaling (locked to aspect ratio)
+[X] ~~Load image from directory~~
+[X] ~~Scaling (locked to aspect ratio)~~
 [ ] Rotation
 
 ## Panel
 [ ] control light direction
 
 ## Artboards
-[X] Create Artboard Entity
-[X] Create container subEntity
-[-] Place Entities in Artboard automatically?
-[X] Link copy (for secondary artboards?)
-[ ] Create ONLY Desktop & Mobile artboards and ONLY export contents of artboards?
-[ ] parent entities' positions inside artboards and panels to the position of the artboard / panel? that will fix some problems!
+[X] ~~Create Artboard Entity~~
+[X] ~~Create container subEntity~~
+[X] ~~Place Entities in Artboard automatically?~~
+[X] ~~Link copy (for secondary artboards?)~~
+[X] ~~Create ONLY Desktop & Mobile artboards~~
+[ ] ONLY export contents of artboards?
+[X] ~~parent entities' positions inside artboards and panels to the position of the artboard / panel? that will fix some problems!~~
+[X] ~~fix problems made by parenting entities' positions inside artboards...~~
 
 ## Pages
 [ ] create multiple pages, switch between

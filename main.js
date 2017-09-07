@@ -336,10 +336,10 @@ function getSavedEntityObject(entity) {
 		});
 	}
 
-	if(entity.hasOwnProperty('currentPanel')) {
-		savedEntity.currentPanel = entity.currentPanel.id;
+	if(entity.currentContainer) {
+		savedEntity.currentContainer = entity.currentContainer.parentElement.id;
 	}
-	if(entity.hasOwnProperty('linkedEntity')) {
+	if(entity.linkedEntity) {
 		savedEntity.linkedEntity = entity.linkedEntity.id;
 	}
 
@@ -369,14 +369,14 @@ function createEntityFromSaveObject(s, _createdEntities) {
 
 	if(s.hasOwnProperty('entities')) {
 		s.entities.forEach(function(ent_id) {
-			if(entities.hasOwnProperty(ent_id)) {
-				entity.content.toggleEntity(_createdEntities[ent_id]);
+			if(_createdEntities.hasOwnProperty(ent_id)) {
+				entity.content.toggleEntity(_createdEntities[ent_id], false);
 			}
-		})
+		});
 	}
 
-	if(s.hasOwnProperty('currentPanel') && _createdEntities.hasOwnProperty(s.currentPanel)) {
-		_createdEntities[s.currentPanel].content.toggleEntity(entity);
+	if(s.currentContainer && _createdEntities.hasOwnProperty(s.currentContainer)) {
+		_createdEntities[s.currentContainer].content.toggleEntity(entity, false);
 	}
 	if(s.hasOwnProperty('linkedEntity')) {
 		entity.linkEntity(_createdEntities[s.linkedEntity]);
@@ -875,15 +875,9 @@ class Handle {
 		this._x = x; // actual x position before constraints are applied
 		this._y = y; // actual y position before constraints are applied
 
-		let _origin = {x: 0, y: 0};
-		this._origin = _origin;
-		
-		this.origin = {
-			get x() { return _origin.x },
-			get y() { return _origin.y },
-			set x(nx) { return _origin.x = nx },
-			set y(ny) { return _origin.y = ny }
-		};
+		this._origin = {x: 0, y: 0};
+
+		this.resetOrigin();
 
 		/*~~~*/ this._offset = {x: 0, y: 0}; // rendering offset of handle, does not affect absolute position. Used so that some handles don't overlap important bits you're editing...
 
@@ -898,7 +892,7 @@ class Handle {
 
 	// make position of this handle relative to specified parent handle
 	parent(handle) { /*++++*/
-		let _origin = this.origin;
+		let _origin = this._origin;
 		this.origin = {
 			// absolute origin, no matter how deeply nested
 			get x() { return _origin.x + handle.x + handle.origin.x; },
@@ -914,11 +908,22 @@ class Handle {
 
 		/*~~~*/ this.detachParent = function() {
 		/*~~~*/ 	handle.removeCallback(callback);
+		/*~~~*/ 	this.resetOrigin();
 		/*~~~*/ 	this.updatePosition(true);
 		/*~~~*/ }.bind(this);
 
 		// update position of this handle to pick up position of parent
 		this.updatePosition(true);
+	}
+
+	resetOrigin() {
+		let _origin = this._origin;
+		this.origin = {
+			get x() { return _origin.x },
+			get y() { return _origin.y },
+			set x(nx) { return _origin.x = nx },
+			set y(ny) { return _origin.y = ny }
+		};
 	}
 
 	detachParent() {}
@@ -1236,7 +1241,7 @@ class Entity {
 	}
 
 	_updatePos() {
-		let pos = this.pos.getAbsolute();
+		let pos = this.pos/*.getAbsolute()*/;
 		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 	}
@@ -1366,17 +1371,6 @@ class Panel extends Entity {
 		this._updatePos();
 	}
 
-	_updatePos() {
-		let pos = this.pos.getAbsolute();
-		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
-		this.panel.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-		// this.content.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
-
-		(this.content.entities || []).forEach(function(entity) {
-			entity.pos.updatePosition(true);
-		});
-	}
-
 	_initScale() { /*++++*/
 		this.scale = this.addHandle(new Handle(100, 100));
 		this.scale.parent(this.pos);
@@ -1428,18 +1422,26 @@ class ContainerEntity extends Visual {
 		this.entities = [];
 	}
 
-	toggleEntity(entity) {
+	toggleEntity(entity, modifyPos=true) {
 		if(entity === this.parentElement) return;
 		let index = this.entities.indexOf(entity);
 		if(index != -1) {
 			render.appendChild(entity.element);
-			delete entity.currentPanel;
+			entity.currentContainer = null;
+
+			let absolutePos = entity.pos.getAbsolute();
 			entity.pos.detachParent();
+			if(modifyPos) entity.pos.setPosition(absolutePos.x, absolutePos.y, true);
+
 			this.entities.splice(index, 1);
 		}else{
 			this.element.appendChild(entity.element);
-			entity.currentPanel = this;
+			entity.currentContainer = this;
+
+			let relativePos = entity.pos.relativeTo(this.parentElement.pos);
 			entity.pos.parent(this.parentElement.pos);
+			if(modifyPos) entity.pos.setPosition(relativePos.x, relativePos.y, true);
+
 			this.entities.push(entity);
 		}
 		entity.pos.updatePosition();
@@ -1972,7 +1974,7 @@ class TextEntityBubble extends Visual {
 	}
 
 	_updatePos() { /*++++*/
-		let pos = this.textentity.pos.getAbsolute();
+		let pos = this.textentity.pos/*.getAbsolute()*/;
 		/*~~~*/ // pos = this._convertPointToLocalCoords(this.pos);
 		this.element.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
 		this.textBounds.setAttribute('transform', `translate(${pos.x}, ${pos.y})`);
@@ -2193,9 +2195,10 @@ let subEntityTypes = {ContainerEntity, CharacterHead, CharacterHair, CharacterEy
 /*                         Hotkeys                          */
 /* --------------------================-------------------- */
 
-// CREATE: PANEL, TEXTENTITY, CHARACTER, IMPORTENTITY
+// CREATE: PANEL, TEXTENTITY, CHARACTER, IMPORTENTITY, SYMBOLICLINKENTITY
 hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4, ctrl+5', function(event, handler) {
 	let entity;
+	let hoveredEntity = entities[getClosestEntityID(mouse.target)];
 	switch(handler.key) {
 		case 'ctrl+1': entity = new Panel(); break;
 		case 'ctrl+2': entity = new TextEntity(); break;
@@ -2203,8 +2206,15 @@ hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4, ctrl+5', function(event, handler) {
 		case 'ctrl+4': entity = new ImportEntity(); break;
 		case 'ctrl+5': if(selected) entity = new SymbolicLinkEntity(selected); break;
 	}
-	if(entity) entity.pos.setPosition(mouse.x, mouse.y, true);
-	save();
+	if(entity) {
+		entity.pos.setPosition(mouse.x, mouse.y, true);
+
+		if(hoveredEntity && hoveredEntity.constructor === ArtBoard) {
+			hoveredEntity.content.toggleEntity(entity);
+		}
+
+		save();
+	}
 });
 
 // MOVE: BACK, BACK1, FORWARD1, FRONT
@@ -2224,7 +2234,7 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 	let hoveredEntity = entities[getClosestEntityID(mouse.target)];
 	switch(handler.key) {
 		case 'ctrl+q':
-			if(mouse.target.classList.contains('panel') && selected != null) {
+			if([Panel, ArtBoard].indexOf(hoveredEntity.constructor) !== -1 && selected != null) {
 				hoveredEntity.content.toggleEntity(selected);
 			}
 			save();

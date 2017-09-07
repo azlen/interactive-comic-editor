@@ -13,6 +13,7 @@ DEADLINE: Sept. 10th
     [ ] Rotate images
     [X] Export
     [X] Artboards
+    [X] Linking Entities
 [ ] 
 
 DEADLINE: Sept. 15th
@@ -52,8 +53,8 @@ DEADLINE: Sept. 30th
 [X] ~~make save json slightly more compatible with future versions~~
 [X] ~~Link panel between artboards for mobile support and such!~~
 [X] ~~Saving Symbolic Link Entities~~
-[ ] Export contents of ArtBoards
-[ ] Modify export for symbolic link entities
+[X] ~~Export contents of ArtBoards~~
+[?] Modify export for symbolic link entities
 
 ## Bugs
 
@@ -121,7 +122,7 @@ DEADLINE: Sept. 30th
 [X] ~~Place Entities in Artboard automatically?~~
 [X] ~~Link copy (for secondary artboards?)~~
 [X] ~~Create ONLY Desktop & Mobile artboards~~
-[ ] ONLY export contents of artboards?
+[X] ~~ONLY export contents of artboards?~~
 [X] ~~parent entities' positions inside artboards and panels to the position of the artboard / panel? that will fix some problems!~~
 [X] ~~fix problems made by parenting entities' positions inside artboards...~~
 

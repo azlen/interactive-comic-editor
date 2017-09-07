@@ -375,7 +375,7 @@ function createEntityFromSaveObject(s, _createdEntities) {
 		});
 	}
 
-	if(s.currentContainer && _createdEntities.hasOwnProperty(s.currentContainer)) {
+	if(s.currentContainer !== undefined && _createdEntities.hasOwnProperty(s.currentContainer)) {
 		_createdEntities[s.currentContainer].content.toggleEntity(entity, false);
 	}
 	if(s.hasOwnProperty('linkedEntity')) {
@@ -489,15 +489,22 @@ function exportHTML(zip) {
 	let htmlElement = h('html', [
 		headElement = h('head'),
 		h('body', [
-			svgElement = svg('svg.paper'),
+			artboards.map(function(artboard) {
+				let svgElement = svg(`svg.${artboard.options.type.value}`, {
+					width: artboard.options.width.value,
+					height: artboard.options.height.value
+				});
+				svgElement.innerHTML = defs.outerHTML + artboard.content.element.innerHTML;
+				return svgElement;
+			}),
 			h('script', {src: 'js/_util.js'}),
 			h('script', {src: 'js/_init.js'}),
 		])
 	]);
 	headElement.innerHTML = document.head.innerHTML;
-	svgElement.innerHTML = defs.outerHTML + render.outerHTML;
+	// svgElement.innerHTML = defs.outerHTML + render.outerHTML;
 	
-	let images = [].slice.call(svgElement.querySelectorAll('image'));
+	let images = [].slice.call(htmlElement.querySelectorAll('image'));
 	for(let i in images) {
 		let href = images[i].getAttribute('href');
 		let name = href.replace(/.*\//, '');
@@ -602,7 +609,7 @@ function exportJS(zip) {
 						`);
 					} else if(v.constructor === Handle) {
 						
-					} else if(subEntityTypes.hasOwnProperty(v.constructor.name)) {
+					} else if(subEntityTypes.hasOwnProperty(v.constructor.name) && ['currentContainer', 'conjoinedTo', 'parentElement'].indexOf(variableName) === -1) {
 						if(v !== parent) {
 							addClassVars(v, entity, `${crumb}${crumb2}.${variableName}`);
 						}
@@ -916,7 +923,7 @@ class Handle {
 		this.updatePosition(true);
 	}
 
-	resetOrigin() {
+	resetOrigin() { /*++++*/
 		let _origin = this._origin;
 		this.origin = {
 			get x() { return _origin.x },
@@ -1142,6 +1149,7 @@ class RotationHandle extends Handle {
 /* --------------------================-------------------- */
 
 let entities = {};
+let artboards = [];
 
 class Visual {
 	constructor() {
@@ -1294,15 +1302,15 @@ class Entity {
 
 class ArtBoard extends Entity {
 	_beforeRender() { /*++++*/
-		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
-
 		this.content = new ContainerEntity(this);
 
 		this._initOptions();
 	}
 
 	_afterRender() {
-		// this._updateScale();
+		artboards.push(this);
+
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 		this._updateType();
 	}
 
@@ -1359,14 +1367,13 @@ class ArtBoard extends Entity {
 
 class Panel extends Entity {
 	_beforeRender() { /*++++*/
-		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
-
 		this.content = new ContainerEntity(this);
 
 		this._initScale();
 	}
 
 	_afterRender() {
+		this.pos.applyConstraint(constraints.snapToGrid.bind(null, 12.5));	
 		this._updateScale();
 		this._updatePos();
 	}
@@ -2154,31 +2161,30 @@ class ImportEntity extends Entity {
 }
 
 class SymbolicLinkEntity extends Entity {
-	_afterRender(entity) {
+	_afterRender(entity) { /*++++*/
 		if(entity) this.linkEntity(entity);
 	}
 
-	linkEntity(entity) {
+	linkEntity(entity) { /*++++*/
 		this.linkedEntity = entity;
 		while(this.linkedEntity.constructor === SymbolicLinkEntity) {
 			this.linkedEntity = this.linkedEntity.linkedEntity;
 		}
 
-		this.pos.applyConstraint.apply(this.pos, this.linkedEntity.pos.constraints);
-		this.linkedEntity.pos.applyCallback(this._updateOrigin.bind(this));
+		/*~~~*/ this.pos.applyConstraint.apply(this.pos, this.linkedEntity.pos.constraints);
+		this.linkedEntity.pos.applyCallback(this._updatePos.bind(this));
 
-		this.element.setAttribute('href', `#${this.linkedEntity.element.getAttribute('id')}`);
+		/*~~~*/ this.element.setAttribute('href', `#${this.linkedEntity.element.getAttribute('id')}`);
 	
-		this._updateOrigin();
+		/*~~~*/ this._updatePos();
 	}
 
-	_updateOrigin() {
-		//this.pos._origin.x = this.linkedEntity.pos.x;
-		// this.pos._origin.y = this.linkedEntity.pos.y;
-		this.pos.origin.x = -this.linkedEntity.pos.x;
-		this.pos.origin.y = -this.linkedEntity.pos.y;
-		this.pos.setOffset(this.linkedEntity.pos.x, this.linkedEntity.pos.y);
-		this.pos.updatePosition(true);
+	_updatePos() {
+		if(!this.linkedEntity) return;
+		this.element.setAttribute('transform', `translate(
+			${this.pos.x - this.linkedEntity.pos.x},
+			${this.pos.y - this.linkedEntity.pos.y}
+		)`)
 	}
 
 	_render() {
@@ -2204,7 +2210,7 @@ hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4, ctrl+5', function(event, handler) {
 		case 'ctrl+2': entity = new TextEntity(); break;
 		case 'ctrl+3': entity = new Character(); break;
 		case 'ctrl+4': entity = new ImportEntity(); break;
-		case 'ctrl+5': if(selected) entity = new SymbolicLinkEntity(selected); break;
+		case 'ctrl+5': if(selected && selected.constructor !== ArtBoard) entity = new SymbolicLinkEntity(selected); break;
 	}
 	if(entity) {
 		entity.pos.setPosition(mouse.x, mouse.y, true);

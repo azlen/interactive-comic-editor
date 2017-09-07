@@ -109,13 +109,19 @@
 			height: 100%;
 		}
 
-		.panel {
+		.panel, .artboard {
 			fill: #FFFFFF;
 		}
 		.panel-border {
 			fill: none;
 			stroke: #333333;
 			stroke-width: 4px; /* double width for mask */
+		}
+		.artboard-border {
+			fill: none;
+			stroke: #999999;
+			stroke-dasharray: 5 5;
+			stroke-width: 2px;
 		}
 		/*.selected .panel-border {
 			stroke: #0099FF;
@@ -277,7 +283,8 @@
 				<li>ctrl + 1: Create Panel</li>
 				<li>ctrl + 2: Create Text Entity</li>
 				<li>ctrl + 3: Create Character</li>
-				<li>ctrl + 3: Create Import Entity</li>
+				<li>ctrl + 4: Create Import Entity</li>
+				<li>ctrl + 5: Create Symbolic Link Entity</li>
 				<br/>
 				<li>ctrl + q: Toggle selected masked by hovered panel</li>
 				<li>ctrl + w: Toggle selected Text Entity join</li>

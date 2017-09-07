@@ -52,7 +52,9 @@ DEADLINE: Sept. 30th
 [ ] remove "_" from the start of like every function ever...
 [ ] only pay attention to `/*++++*/` instead of applyCallbacks
 [ ] make save json slightly more compatible with future application versions
-[ ] Link panel between artboards for mobile support and such!
+[X] Link panel between artboards for mobile support and such!
+[X] Saving Symbolic Link Entities
+[ ] Modify export for symbolic link entities
 
 ## Bugs
 
@@ -61,6 +63,8 @@ DEADLINE: Sept. 30th
 [ ] Fix Entities not toggling back in Panel on undo/redo
 [ ] Pull copy/paste out of panel
 [ ] Fix update scale on ImportEntity
+[ ] Fix handle positioning when moved in and out of container
+[ ] Save textEntity merge
 
 ## Entities
 [-] Select multiple entities
@@ -109,12 +113,15 @@ DEADLINE: Sept. 30th
 [X] Scaling (locked to aspect ratio)
 [ ] Rotation
 
+## Panel
+[ ] control light direction
+
 ## Artboards
 [X] Create Artboard Entity
 [X] Create container subEntity
 [-] Place Entities in Artboard automatically?
-[?] Link copy (for secondary artboards?)
-[ ] Only export contents of artboards
+[X] Link copy (for secondary artboards?)
+[ ] Create ONLY Desktop & Mobile artboards and ONLY export contents of artboards?
 [ ] parent entities' positions inside artboards and panels to the position of the artboard / panel? that will fix some problems!
 
 ## Pages

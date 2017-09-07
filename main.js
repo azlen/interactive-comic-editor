@@ -60,12 +60,18 @@
 
 	window.mouse = {x: 100, y: 100, target: null};
 
+	function setMouse(e) {
+		mouse.x = e.clientX * viewBox.scale + viewBox.x;
+		mouse.y = e.clientY * viewBox.scale + viewBox.y;
+	}
+
 	function _mousedown(fns, e) {
 		target = e.target;
 		callbacks = fns;
 
-		x = e.clientX * viewBox.scale;
-		y = e.clientY * viewBox.scale;
+		setMouse(e);
+		x = mouse.x;
+		y = mouse.y;
 		down = true;
 
 		if(callbacks.hasOwnProperty('mousedown')) {
@@ -74,8 +80,7 @@
 	}
 
 	function _mousemove(e) {
-		mouse.x = e.clientX * viewBox.scale;
-		mouse.y = e.clientY * viewBox.scale;
+		setMouse(e);
 		mouse.target = e.target;
 
 		if(down) {
@@ -305,12 +310,12 @@ function download(text, filename) {
 
 function getSaveObject() {
 	let s = {
-		entities: []
+		entities: {}
 	};
-	for(let key in entities) {
-		let entity = entities[key];
-		s.entities.push(getSavedEntityObject(entity));
-	} 
+	for(let _id in entities) {
+		let entity = entities[_id];
+		s.entities[_id] = getSavedEntityObject(entity);
+	}
 	return s;
 }
 
@@ -328,26 +333,31 @@ function getSavedEntityObject(entity) {
 	if(entity.hasOwnProperty('content') && entity.content.entities.length > 0) {
 		savedEntity.entities = entity.content.entities.map(function(ent) {
 			return ent.id;
-		})
+		});
 	}
-	if(entity.currentPanel !== null) {
+
+	if(entity.hasOwnProperty('currentPanel')) {
 		savedEntity.currentPanel = entity.currentPanel.id;
 	}
+	if(entity.hasOwnProperty('linkedEntity')) {
+		savedEntity.linkedEntity = entity.linkedEntity.id;
+	}
+
 	return savedEntity;
 }
 
 function load(s) {
 	destroyAll();
 
-	let _ids = [];
+	let _createdEntities = {};
 
-	for(let i in s.entities) {
-		let entity = createEntityFromSaveObject(s.entities[i]);
-		_ids.push(entity.id);
+	for(let _id in s.entities) {
+		let entity = createEntityFromSaveObject(s.entities[_id], _createdEntities);
+		_createdEntities[_id] = entity;
 	}
 }
 
-function createEntityFromSaveObject(s) {
+function createEntityFromSaveObject(s, _createdEntities) {
 	let entity = new (entityTypes[s.type])();
 	
 	for(let opt in s.options) {
@@ -360,13 +370,16 @@ function createEntityFromSaveObject(s) {
 	if(s.hasOwnProperty('entities')) {
 		s.entities.forEach(function(ent_id) {
 			if(entities.hasOwnProperty(ent_id)) {
-				entity.content.toggleEntity(entities[ent_id]);
+				entity.content.toggleEntity(_createdEntities[ent_id]);
 			}
 		})
 	}
 
-	if(s.hasOwnProperty('currentPanel') && entities.hasOwnProperty(s.currentPanel)) {
-		entities[s.currentPanel].content.toggleEntity(entity);
+	if(s.hasOwnProperty('currentPanel') && _createdEntities.hasOwnProperty(s.currentPanel)) {
+		_createdEntities[s.currentPanel].content.toggleEntity(entity);
+	}
+	if(s.hasOwnProperty('linkedEntity')) {
+		entity.linkEntity(_createdEntities[s.linkedEntity]);
 	}
 
 	return entity;
@@ -862,7 +875,16 @@ class Handle {
 		this._x = x; // actual x position before constraints are applied
 		this._y = y; // actual y position before constraints are applied
 
-		this.origin = {x: 0, y: 0};
+		let _origin = {x: 0, y: 0};
+		this._origin = _origin;
+		
+		this.origin = {
+			get x() { return _origin.x },
+			get y() { return _origin.y },
+			set x(nx) { return _origin.x = nx },
+			set y(ny) { return _origin.y = ny }
+		};
+
 		/*~~~*/ this._offset = {x: 0, y: 0}; // rendering offset of handle, does not affect absolute position. Used so that some handles don't overlap important bits you're editing...
 
 		this.callbacks = [];
@@ -876,10 +898,13 @@ class Handle {
 
 	// make position of this handle relative to specified parent handle
 	parent(handle) { /*++++*/
+		let _origin = this.origin;
 		this.origin = {
 			// absolute origin, no matter how deeply nested
-			get x() { return handle.x + handle.origin.x; },
-			get y() { return handle.y + handle.origin.y; }
+			get x() { return _origin.x + handle.x + handle.origin.x; },
+			get y() { return _origin.y + handle.y + handle.origin.y; },
+			set x(nx) { return _origin.x = nx },
+			set y(ny) { return _origin.y = ny }
 		};
 		// when position of parent handle changes, update position of this handle
 		let callback = function() {
@@ -899,9 +924,13 @@ class Handle {
 	detachParent() {}
 
 	// change offset of handle rendering, ONLY affects VISUAL POSITION of handle NOT THE ACTUAL POSITION
-	offset(x, y) {
-		this._offset.x += x;
-		this._offset.y += y;
+	offset(dx, dy) {
+		this.setOffset(this._offset.x + dx, this._offset.y + dy);
+	}
+
+	setOffset(x, y) {
+		this._offset.x = x;
+		this._offset.y = y;
 		if(this.handle) {
 			this.handle._offset = this._offset;
 			this.handle.applyTransformations();
@@ -1113,7 +1142,7 @@ class Visual {
 	constructor() {
 		this._beforeRender.apply(this, arguments);
 		this._render();
-		this._afterRender();
+		this._afterRender.apply(this, arguments);
 	}
 
 	_beforeRender() { /* Override */ }
@@ -1128,13 +1157,11 @@ class Entity {
 		this.handles = [];
 		this.options = {};
 
-		this.currentPanel = null;
-
 		this._initPos();
 
-		this._beforeRender();
+		this._beforeRender.apply(this, arguments);
 		this._render();
-		this._afterRender();
+		this._afterRender.apply(this, arguments);
 
 		/*~~~*/ this.element.setAttribute('id', `entity${this.id}`);
 		/*~~~*/ this.element.setAttribute('data-id', this.id);
@@ -1270,17 +1297,34 @@ class ArtBoard extends Entity {
 	}
 
 	_afterRender() {
-		this._updateScale();
+		// this._updateScale();
+		this._updateType();
 	}
 
-	_initOptions() {
-		this.addOption(new UI.Select('size', ['desktop', 'mobile']));
+	_initOptions() { /*++++*/
+		this.addOption(new UI.Bool('includeInExport', true));
+
+		this.addOption(new UI.Select('type', ['desktop', 'mobile']));
+		this.options.type.applyCallback(this._updateType.bind(this));
 
 		this.addOption(new UI.Number('width', 100));
 		this.options.width.applyCallback(this._updateScale.bind(this));
 
 		this.addOption(new UI.Number('height', 100));
 		this.options.height.applyCallback(this._updateScale.bind(this));
+	}
+
+	_updateType() {
+		/*switch(this.options.type.value) {
+			case 'desktop':
+				this.options.width.value = 500;
+				this.options.height.value = 300;
+				break;
+			case 'mobile':
+				this.options.width.value = 200;
+				this.options.height.value = 300;
+				break;
+		}*/
 	}
 
 	_updateScale() {
@@ -1298,16 +1342,14 @@ class ArtBoard extends Entity {
 				])
 			]),
 			svg('g', { 'clip-path': `url(#artBoardClip${this.id})` }, [
-				svg('use.panel', { href: `#artBoard${this.id}`, 'data-id': this.id }),
+				svg('use.artboard', { href: `#artBoard${this.id}`, 'data-id': this.id }),
 				this.content.element,
-				svg('use.panel-border', { href: `#artBoard${this.id}`, 'data-id': this.id }),
+				svg('use.artboard-border', { href: `#artBoard${this.id}`, 'data-id': this.id }),
 			])
 		]);
 
 		render.appendChild(this.element);
 	}
-
-	destroy() { }
 }
 
 class Panel extends Entity {
@@ -1339,7 +1381,7 @@ class Panel extends Entity {
 		this.scale = this.addHandle(new Handle(100, 100));
 		this.scale.parent(this.pos);
 		this.scale.applyCallback(this._updateScale.bind(this));
-		/*~~~*/ this.scale.applyConstraint(constraints.minimum.bind(null, 50, 50));
+		/*~~~*/ this.scale.applyConstraint(constraints.minimum.bind(null, 12.5, 12.5));
 		/*~~~*/ this.scale.applyConstraint(constraints.snapToGrid.bind(null, 12.5));
 	}
 
@@ -1349,7 +1391,7 @@ class Panel extends Entity {
 	}
 
 	_render() {
-		this.element = svg('g', { mask: 'url(#panelMask)' }, [
+		this.element = svg('g', { /*mask: 'url(#panelMask)'*/ }, [
 			svg('defs', [
 				this.panel = svg(`rect #panel${this.id}`),
 
@@ -1365,17 +1407,17 @@ class Panel extends Entity {
 			])
 		]);
 
-		this.maskElement = svg('use.panel-mask', {
+		/*this.maskElement = svg('use.panel-mask', {
 			href: `#panel${this.id}`,
 			fill: 'white'
 		});
-		panelMask.insertBefore(this.maskElement, panelMask.firstChild);
+		panelMask.insertBefore(this.maskElement, panelMask.firstChild);*/
 		
 		render.appendChild(this.element);
 	}
 
 	ondestroy() {
-		this.maskElement.parentElement.removeChild(this.maskElement);
+		// this.maskElement.parentElement.removeChild(this.maskElement);
 	}
 }
 
@@ -1391,7 +1433,7 @@ class ContainerEntity extends Visual {
 		let index = this.entities.indexOf(entity);
 		if(index != -1) {
 			render.appendChild(entity.element);
-			entity.currentPanel = null;
+			delete entity.currentPanel;
 			entity.pos.detachParent();
 			this.entities.splice(index, 1);
 		}else{
@@ -1814,8 +1856,6 @@ class CharacterLimb extends Visual {
 
 class TextEntity extends Entity {
 	_beforeRender() { /*++++*/
-		this.conjoinedTo = null;
-
 		this._initOptions();
 
 		this.bubble = new TextEntityBubble(this);
@@ -1827,11 +1867,12 @@ class TextEntity extends Entity {
 	}
 
 	toggleJoinTextEntity(entity) {
-		if(this.conjoinedTo === null) {
+		if(!this.conjoinedTo) {
 			this.conjoinedTo = entity;
 			entity.bubbleContainer.appendChild(this.bubble.element);
 			entity.tailContainer.appendChild(this.tail.element);
 		}else{
+			delete this.conjoinedTo;
 			this.bubbleContainer.appendChild(this.bubble.element);
 			this.tailContainer.appendChild(this.tail.element);
 		}
@@ -2110,7 +2151,42 @@ class ImportEntity extends Entity {
 	}
 }
 
-let entityTypes = {ArtBoard, Panel, TextEntity, Character, ImportEntity};
+class SymbolicLinkEntity extends Entity {
+	_afterRender(entity) {
+		if(entity) this.linkEntity(entity);
+	}
+
+	linkEntity(entity) {
+		this.linkedEntity = entity;
+		while(this.linkedEntity.constructor === SymbolicLinkEntity) {
+			this.linkedEntity = this.linkedEntity.linkedEntity;
+		}
+
+		this.pos.applyConstraint.apply(this.pos, this.linkedEntity.pos.constraints);
+		this.linkedEntity.pos.applyCallback(this._updateOrigin.bind(this));
+
+		this.element.setAttribute('href', `#${this.linkedEntity.element.getAttribute('id')}`);
+	
+		this._updateOrigin();
+	}
+
+	_updateOrigin() {
+		//this.pos._origin.x = this.linkedEntity.pos.x;
+		// this.pos._origin.y = this.linkedEntity.pos.y;
+		this.pos.origin.x = -this.linkedEntity.pos.x;
+		this.pos.origin.y = -this.linkedEntity.pos.y;
+		this.pos.setOffset(this.linkedEntity.pos.x, this.linkedEntity.pos.y);
+		this.pos.updatePosition(true);
+	}
+
+	_render() {
+		this.element = svg('use');
+		
+		render.appendChild(this.element);
+	}
+}
+
+let entityTypes = {ArtBoard, Panel, TextEntity, Character, ImportEntity, SymbolicLinkEntity};
 let subEntityTypes = {ContainerEntity, CharacterHead, CharacterHair, CharacterEyes,/* CharacterGlasses,*/ CharacterBody, CharacterLimb, TextEntityBubble, TextEntityTail}
 
 /* --------------------================-------------------- */
@@ -2118,15 +2194,16 @@ let subEntityTypes = {ContainerEntity, CharacterHead, CharacterHair, CharacterEy
 /* --------------------================-------------------- */
 
 // CREATE: PANEL, TEXTENTITY, CHARACTER, IMPORTENTITY
-hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4', function(event, handler) {
+hotkeys('ctrl+1, ctrl+2, ctrl+3, ctrl+4, ctrl+5', function(event, handler) {
 	let entity;
 	switch(handler.key) {
 		case 'ctrl+1': entity = new Panel(); break;
 		case 'ctrl+2': entity = new TextEntity(); break;
 		case 'ctrl+3': entity = new Character(); break;
 		case 'ctrl+4': entity = new ImportEntity(); break;
+		case 'ctrl+5': if(selected) entity = new SymbolicLinkEntity(selected); break;
 	}
-	entity.pos.setPosition(mouse.x, mouse.y, true);
+	if(entity) entity.pos.setPosition(mouse.x, mouse.y, true);
 	save();
 });
 
@@ -2163,7 +2240,7 @@ hotkeys('ctrl+q, ctrl+w', function(event, handler) {
 
 // DELETE
 hotkeys('ctrl+shift+x', function(event, handler) {
-	if(selected != null) {
+	if(selected !== null && selected.constructor !== ArtBoard) {
 		selected.destroy();
 		selected = null;
 	}
@@ -2175,7 +2252,20 @@ hotkeys('ctrl+shift+x', function(event, handler) {
 hotkeys('ctrl+shift+m', function(event, handler) {
 	if(confirm('Are you sure you want to clear the current save?')) {
 		destroyAll();
-		let workspace = new ArtBoard();
+		selected = null;
+
+		let desktop = new ArtBoard();
+		desktop.options.type.value = 'desktop';
+		desktop.options.width.value = 537.5;
+		desktop.options.height.value = 300;
+		desktop.pos.setPosition(12.5, 12.5, true);
+
+		let mobile = new ArtBoard();
+		mobile.options.type.value = 'mobile';
+		mobile.options.width.value = 275;
+		mobile.options.height.value = 400;
+		mobile.pos.setPosition(600, 12.5, true);
+
 		save();
 	}
 });

@@ -1,0 +1,416 @@
+<html>
+
+<head>
+				<link rel="stylesheet" type="text/css" href="css/font.css">
+				<link rel="stylesheet" type="text/css" href="css/mediaqueries.css">
+				<style>
+								/* ---------------- */
+										/*   BASIC STUFF
+										/* ---------------- */
+								
+										html, body {
+											width: 100%;
+											height: 100%;
+											padding: 0;
+											margin: 0;
+								
+											font-family: Helvetica;
+											color: #333;
+								
+											overflow: hidden;
+										}
+								
+										body {
+											font-family: 'Comic Neue', sans-serif;
+											font-weight: 400;
+											font-size: 1em;
+											line-height: 1.5;
+											/* Enable a font's kerning: http://stackoverflow.com/questions/15160897/font-feature-settings-what-is-the-correct-syntax */
+											font-feature-settings: "kern";
+											-moz-font-feature-settings: "kern";
+											-webkit-font-feature-settings: "kern";
+										}
+								
+										h1, h2, h3 {
+											margin: 0;
+											padding: 0;
+										}
+								
+										/* ---------------- */
+										/*       HTML
+										/* ---------------- */
+								
+										.ui-container {
+											position: fixed;
+											top: 0;
+											right: 0;
+											height: 100%;
+								
+											overflow-y: auto;
+										}
+								
+										.inspector, .layers {
+											box-sizing: border-box;
+								
+											min-height: 50px;
+											width: 280px;
+											margin: 20px;
+											padding: 20px;
+											margin-bottom: 10px;
+								
+											border-radius: 7px;
+											border: 2px solid #0099FF;
+											background-color: rgba(255, 255, 255, 0.8);
+										}
+								
+										.inspector h2, .layers h2 {
+											text-transform: uppercase;
+											font-size: 10pt;
+											color: #999;
+											margin-bottom: 20px;
+										}
+								
+										.inspector .content {
+											font-weight: bold;
+										}
+								
+										.layers .content {
+											overflow: hidden;
+											border-radius: 5px;
+											border: 2px solid #333;
+										}
+								
+										.layers .content .layer {
+											padding: 2px 10px;
+										}
+										.layers .content .layer:nth-child(odd) {
+											background-color: #EEEEEE;
+										}
+										.layers .content .layer.selected {
+											background-color: #0099FF;
+											color: #FFFFFF;
+										}
+								
+										.hotkey-description {
+											font-size: 9pt;
+											color: #999;
+										}
+								
+										/* ---------------- */
+										/*       SVG
+										/* ---------------- */
+								
+										path, circle {
+											fill: inherit;
+										}
+								
+										.paper {
+											width: 100%;
+											height: 100%;
+										}
+								
+										.panel, .artboard {
+											fill: #FFFFFF;
+										}
+										.panel-border {
+											fill: none;
+											stroke: #333333;
+											stroke-width: 4px; /* double width for mask */
+										}
+										.artboard-border {
+											fill: none;
+											stroke: #999999;
+											stroke-dasharray: 5 5;
+											stroke-width: 2px;
+										}
+										/*.selected .panel-border {
+											stroke: #0099FF;
+										}*/
+								
+										.handle circle {
+											fill: #FFFFFF;
+											stroke: #333333;
+											stroke-width: 4px;
+											cursor: pointer;
+											z-index: 1000;
+										}
+										.rotationhandle circle {
+											transform: scale(0.8);
+										}
+										.handle.move circle {
+											cursor: move;
+											transform: scale(1.2);
+										}
+								
+										.handle line {
+											stroke: #333333;
+											stroke-width: 2px;
+										}
+								
+										.handle:not(.rotation) line {
+											display: none;
+										}
+								
+										.character .headgroup .head-border  {
+											stroke: #000000;
+											stroke-width: 4px; /* double stroke width because of clip */
+										}
+										.character .headgroup .head-shadow {
+											fill: #E59B27;
+										}
+										.character .headgroup .head-highlight {
+											fill: #FFE58C;
+										}
+								
+										.character .headgroup .eyes ellipse {
+											fill: #000000;
+										}
+										.character .headgroup .glassesgroup .lenses {
+											stroke: #000000;
+											stroke-width: 2px;
+											fill: rgba(255, 255, 255, 0.5);
+											fill: #FFFFFF;
+										}
+								
+										.character .headgroup .hair-back {
+											fill: #000000;
+										}
+										.character .headgroup .hair-front {
+											stroke: #000000;
+											stroke-width: 4px; /* double stroke width because of clip */
+											fill: #333333;
+										}
+										.character .headgroup .hair-border {
+											stroke: #000000;
+											stroke-width: 4px; /* double stroke width because of clip */
+											fill: none;
+										}
+								
+										.character .bodygroup .body-border {
+											stroke: #000000;
+											stroke-width: 4px; /* double stroke width because of clip */
+											stroke-linejoin: round;
+										}
+										.character .bodygroup .body-shadow {
+											fill: #751EFF;
+										}
+										.character .bodygroup .body-highlight {
+											fill: #AE12F2;
+										}
+								
+										.character .bodygroup .limbs .limb {
+											fill: none;
+											stroke: #000000;
+											stroke-width: 4px;
+											stroke-linecap: round;
+										}
+								
+										.speechbubble .bubble-border, .speechbubble .tail-border {
+											stroke: #000000;
+											stroke-width: 4px;
+											stroke-linejoin: round;
+										}
+								
+										.speechbubble .bubble-fill, .speechbubble .tail-fill {
+											stroke: none;
+											fill: #FFFFFF;
+										}
+								
+										.speechbubble .text {
+											display: flex;
+											width: 100% !important;
+											height: 100% !important;
+											align-items: center;
+											margin: 0;
+											/*padding: 3px;*/
+											
+											font-size: 15px;
+											user-select: none;
+										}
+								
+										.speechbubble .text > div {
+											display: block;
+											width: 100%;
+											text-align: center;
+										}
+								
+								
+										.extraborders {
+											pointer-events: none;
+										}
+								
+										.file-input {
+											z-index: 1000;
+											cursor: pointer;
+											height: 100%;
+											font-size: 24px;
+											width: 100%;
+										}
+								
+										/* ---------------- */
+										/*    IMPORTANTS ?
+										/* ---------------- */
+								
+										.hidden {
+											display: none;
+										}
+								
+										.disrupt-mask * {
+											stroke: black;
+											stroke-linejoin: round;
+										}
+				</style>
+</head>
+
+<body><svg class="desktop" viewBox="0 0 537.5 300"><defs><filter id="blur"><feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"></feGaussianBlur></filter><filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="1.75" result="noisy"></feTurbulence><feBlend in="SourceGraphic" in2="noisy" mode="multiply" result="blend"></feBlend><feBlend in="blend" in2="noisy" mode="multiply" result="blend2"></feBlend><feBlend in="blend2" in2="noisy" mode="multiply"></feBlend></filter><filter id="sketchy"><feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="texture"></feTurbulence><feDisplacementMap in="SourceGraphic" in2="texture" scale="4" result="displacement"></feDisplacementMap></filter><mask id="panelMask" maskUnits="userSpaceOnUse"><g></g><g></g></mask></defs><g transform="translate(12.5, 12.5)" id="entity2" data-id="2" data-type="Panel" class=""><defs><rect id="panel2" width="250" height="100"></rect><clipPath id="panelClip2"><use href="#panel2"></use></clipPath></defs><g clip-path="url(#panelClip2)"><use class="panel" href="#panel2" data-id="2"></use><g class="content"><g class="character" id="entity3" data-id="3" data-type="Character" transform="translate(4, 14)"><g class="headgroup" transform="translate(55, 25)"><g clip-path="url(#hairClip3)"><defs><path id="hairClipPath3" d=""></path><path id="hairCutPath3" d="" transform="translate(3, 5) rotate(0)"></path><clipPath id="hairClip3"><use href="#hairClipPath3"></use></clipPath><clipPath id="hairCut3" clip-path="url(#hairClip3)"><use href="#hairCutPath3"></use></clipPath></defs><use class="hair-back" href="#hairCutPath3" transform="translate(50, 0)"></use></g></g><g class="bodygroup" transform="translate(55, 65)"><defs><path id="body3" d="
+			M 25 0
+			Q 5.75 51 12.5 100
+			L -12.5 100
+			Q -31.75 51 -25 0
+			Z
+		"></path><clipPath id="bodyClip3"><use href="#body3"></use></clipPath></defs><g class="limbs"><path class="limb" d="
+			M -25 0
+			Q -63 38 -53 96
+		"></path><path class="limb" d="
+			M 25 0
+			Q 31 65 65 88
+		"></path><path class="limb" d="
+			M -12.5 100
+			Q 3 130 -29 203
+		"></path><path class="limb" d="
+			M 12.5 100
+			Q 30 130 31 204
+		"></path></g><use class="body-border" href="#body3"></use><g clip-path="url(#bodyClip3)"><use class="body-shadow" href="#body3" filter="url(#noise)" style="fill: rgb(230, 0, 0);"></use><use class="body-highlight" href="#body3" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 128, 0);"></use></g></g><g class="headgroup" transform="translate(55, 25)"><defs><circle id="head3" r="25"></circle><clipPath id="headClip3"><use href="#head3"></use></clipPath></defs><use class="head-border" href="#head3"></use><g clip-path="url(#headClip3)"><use class="head-shadow" href="#head3" filter="url(#noise)" style="fill: rgb(255, 116, 63);"></use><use class="head-highlight" href="#head3" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 229, 140);"></use><g class="eyes" transform="translate(3, 5) rotate(0)"><ellipse cx="-8" rx="3" ry="9"></ellipse><ellipse cx="8" rx="3" ry="9"></ellipse></g></g><g clip-path="url(#hairCut3)"><use class="hair-front" href="#hairCutPath3"></use><use class="hair-border" href="#hairClipPath3"></use></g></g></g></g><use class="panel-border" href="#panel2" data-id="2"></use></g></g><g transform="translate(275, 12.5)" id="entity5" data-id="5" data-type="Panel" class=""><defs><rect id="panel5" width="125" height="100"></rect><clipPath id="panelClip5"><use href="#panel5"></use></clipPath></defs><g clip-path="url(#panelClip5)"><use class="panel" href="#panel5" data-id="5"></use><g class="content"><g class="character" id="entity7" data-id="7" data-type="Character" transform="translate(8.5, 15)"><g class="headgroup" transform="translate(55, 25)"><g clip-path="url(#hairClip7)"><defs><path id="hairClipPath7" d=""></path><path id="hairCutPath7" d="" transform="translate(0, 0) rotate(0)"></path><clipPath id="hairClip7"><use href="#hairClipPath7"></use></clipPath><clipPath id="hairCut7" clip-path="url(#hairClip7)"><use href="#hairCutPath7"></use></clipPath></defs><use class="hair-back" href="#hairCutPath7" transform="translate(50, 0)"></use></g></g><g class="bodygroup" transform="translate(55, 65)"><defs><path id="body7" d="
+			M 25 0
+			Q 5.75 51 12.5 100
+			L -12.5 100
+			Q -31.75 51 -25 0
+			Z
+		"></path><clipPath id="bodyClip7"><use href="#body7"></use></clipPath></defs><g class="limbs"><path class="limb" d="
+			M -25 0
+			Q -63 38 -53 96
+		"></path><path class="limb" d="
+			M 25 0
+			Q 26 54 65 88
+		"></path><path class="limb" d="
+			M -12.5 100
+			Q 3 130 -29 203
+		"></path><path class="limb" d="
+			M 12.5 100
+			Q 30 130 31 204
+		"></path></g><use class="body-border" href="#body7"></use><g clip-path="url(#bodyClip7)"><use class="body-shadow" href="#body7" filter="url(#noise)" style="fill: rgb(0, 115, 230);"></use><use class="body-highlight" href="#body7" filter="url(#blur)" x="5" y="-5" style="fill: rgb(0, 255, 255);"></use></g></g><g class="headgroup" transform="translate(55, 25)"><defs><circle id="head7" r="25"></circle><clipPath id="headClip7"><use href="#head7"></use></clipPath></defs><use class="head-border" href="#head7"></use><g clip-path="url(#headClip7)"><use class="head-shadow" href="#head7" filter="url(#noise)" style="fill: rgb(255, 116, 63);"></use><use class="head-highlight" href="#head7" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 229, 140);"></use><g class="eyes" transform="translate(0, 0) rotate(0)"><ellipse cx="-8" rx="3" ry="9"></ellipse><ellipse cx="8" rx="3" ry="9"></ellipse></g></g><g clip-path="url(#hairCut7)"><use class="hair-front" href="#hairCutPath7"></use><use class="hair-border" href="#hairClipPath7"></use></g></g></g></g><use class="panel-border" href="#panel5" data-id="5"></use></g></g><g transform="translate(412.5, 12.5)" id="entity6" data-id="6" data-type="Panel" class=""><defs><rect id="panel6" width="112.5" height="100"></rect><clipPath id="panelClip6"><use href="#panel6"></use></clipPath></defs><g clip-path="url(#panelClip6)"><use class="panel" href="#panel6" data-id="6"></use><g class="content"><g class="character" id="entity8" data-id="8" data-type="Character" transform="translate(3, 15)"><g class="headgroup" transform="translate(55, 25)"><g clip-path="url(#hairClip8)"><defs><path id="hairClipPath8" d=""></path><path id="hairCutPath8" d="" transform="translate(8, 4) rotate(0)"></path><clipPath id="hairClip8"><use href="#hairClipPath8"></use></clipPath><clipPath id="hairCut8" clip-path="url(#hairClip8)"><use href="#hairCutPath8"></use></clipPath></defs><use class="hair-back" href="#hairCutPath8" transform="translate(50, 0)"></use></g></g><g class="bodygroup" transform="translate(55, 65)"><defs><path id="body8" d="
+			M 25 0
+			Q 5.75 51 12.5 100
+			L -12.5 100
+			Q -31.75 51 -25 0
+			Z
+		"></path><clipPath id="bodyClip8"><use href="#body8"></use></clipPath></defs><g class="limbs"><path class="limb" d="
+			M -25 0
+			Q -63 38 -53 96
+		"></path><path class="limb" d="
+			M 25 0
+			Q 26 54 65 88
+		"></path><path class="limb" d="
+			M -12.5 100
+			Q 3 130 -29 203
+		"></path><path class="limb" d="
+			M 12.5 100
+			Q 30 130 31 204
+		"></path></g><use class="body-border" href="#body8"></use><g clip-path="url(#bodyClip8)"><use class="body-shadow" href="#body8" filter="url(#noise)" style="fill: rgb(230, 0, 0);"></use><use class="body-highlight" href="#body8" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 128, 0);"></use></g></g><g class="headgroup" transform="translate(55, 25)"><defs><circle id="head8" r="25"></circle><clipPath id="headClip8"><use href="#head8"></use></clipPath></defs><use class="head-border" href="#head8"></use><g clip-path="url(#headClip8)"><use class="head-shadow" href="#head8" filter="url(#noise)" style="fill: rgb(255, 116, 63);"></use><use class="head-highlight" href="#head8" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 229, 140);"></use><g class="eyes" transform="translate(8, 4) rotate(0)"><ellipse cx="-8" rx="3" ry="9"></ellipse><ellipse cx="8" rx="3" ry="9"></ellipse></g></g><g clip-path="url(#hairCut8)"><use class="hair-front" href="#hairCutPath8"></use><use class="hair-border" href="#hairClipPath8"></use></g></g></g></g><use class="panel-border" href="#panel6" data-id="6"></use></g></g><g transform="translate(12.5, 125)" id="entity12" data-id="12" data-type="Panel" class=""><defs><rect id="panel12" width="512.5" height="162.5"></rect><clipPath id="panelClip12"><use href="#panel12"></use></clipPath></defs><g clip-path="url(#panelClip12)"><use class="panel" href="#panel12" data-id="12"></use><g class="content"><g class="character" id="entity13" data-id="13" data-type="Character" transform="translate(58, 26.5)"><g class="headgroup" transform="translate(55, 25)"><g clip-path="url(#hairClip13)"><defs><path id="hairClipPath13" d=""></path><path id="hairCutPath13" d="" transform="translate(9, 1) rotate(0)"></path><clipPath id="hairClip13"><use href="#hairClipPath13"></use></clipPath><clipPath id="hairCut13" clip-path="url(#hairClip13)"><use href="#hairCutPath13"></use></clipPath></defs><use class="hair-back" href="#hairCutPath13" transform="translate(50, 0)"></use></g></g><g class="bodygroup" transform="translate(55, 65)"><defs><path id="body13" d="
+			M 25 0
+			Q 5.75 51 12.5 100
+			L -12.5 100
+			Q -31.75 51 -25 0
+			Z
+		"></path><clipPath id="bodyClip13"><use href="#body13"></use></clipPath></defs><g class="limbs"><path class="limb" d="
+			M -25 0
+			Q -63 38 -53 96
+		"></path><path class="limb" d="
+			M 25 0
+			Q 26 54 65 88
+		"></path><path class="limb" d="
+			M -12.5 100
+			Q 3 130 -29 203
+		"></path><path class="limb" d="
+			M 12.5 100
+			Q 30 130 31 204
+		"></path></g><use class="body-border" href="#body13"></use><g clip-path="url(#bodyClip13)"><use class="body-shadow" href="#body13" filter="url(#noise)" style="fill: rgb(230, 0, 0);"></use><use class="body-highlight" href="#body13" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 128, 0);"></use></g></g><g class="headgroup" transform="translate(55, 25)"><defs><circle id="head13" r="25"></circle><clipPath id="headClip13"><use href="#head13"></use></clipPath></defs><use class="head-border" href="#head13"></use><g clip-path="url(#headClip13)"><use class="head-shadow" href="#head13" filter="url(#noise)" style="fill: rgb(255, 116, 63);"></use><use class="head-highlight" href="#head13" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 229, 140);"></use><g class="eyes" transform="translate(9, 1) rotate(0)"><ellipse cx="-8" rx="3" ry="9"></ellipse><ellipse cx="8" rx="3" ry="9"></ellipse></g></g><g clip-path="url(#hairCut13)"><use class="hair-front" href="#hairCutPath13"></use><use class="hair-border" href="#hairClipPath13"></use></g></g></g><g class="character" id="entity14" data-id="14" data-type="Character" transform="translate(335, 28.5)"><g class="headgroup" transform="translate(55, 25)"><g clip-path="url(#hairClip14)"><defs><path id="hairClipPath14" d=""></path><path id="hairCutPath14" d="" transform="translate(-5, 0) rotate(0)"></path><clipPath id="hairClip14"><use href="#hairClipPath14"></use></clipPath><clipPath id="hairCut14" clip-path="url(#hairClip14)"><use href="#hairCutPath14"></use></clipPath></defs><use class="hair-back" href="#hairCutPath14" transform="translate(50, 0)"></use></g></g><g class="bodygroup" transform="translate(55, 65)"><defs><path id="body14" d="
+			M 25 0
+			Q 31.75 51 12.5 100
+			L -12.5 100
+			Q -5.75 51 -25 0
+			Z
+		"></path><clipPath id="bodyClip14"><use href="#body14"></use></clipPath></defs><g class="limbs"><path class="limb" d="
+			M -25 0
+			Q -41 45 -53 96
+		"></path><path class="limb" d="
+			M 25 0
+			Q 59 51 65 88
+		"></path><path class="limb" d="
+			M -12.5 100
+			Q -27 148 -29 203
+		"></path><path class="limb" d="
+			M 12.5 100
+			Q 8 152 31 204
+		"></path></g><use class="body-border" href="#body14"></use><g clip-path="url(#bodyClip14)"><use class="body-shadow" href="#body14" filter="url(#noise)" style="fill: rgb(0, 115, 230);"></use><use class="body-highlight" href="#body14" filter="url(#blur)" x="5" y="-5" style="fill: rgb(0, 255, 255);"></use></g></g><g class="headgroup" transform="translate(55, 25)"><defs><circle id="head14" r="25"></circle><clipPath id="headClip14"><use href="#head14"></use></clipPath></defs><use class="head-border" href="#head14"></use><g clip-path="url(#headClip14)"><use class="head-shadow" href="#head14" filter="url(#noise)" style="fill: rgb(255, 116, 63);"></use><use class="head-highlight" href="#head14" filter="url(#blur)" x="5" y="-5" style="fill: rgb(255, 229, 140);"></use><g class="eyes" transform="translate(-5, 0) rotate(0)"><ellipse cx="-8" rx="3" ry="9"></ellipse><ellipse cx="8" rx="3" ry="9"></ellipse></g></g><g clip-path="url(#hairCut14)"><use class="hair-front" href="#hairCutPath14"></use><use class="hair-border" href="#hairClipPath14"></use></g></g></g></g><use class="panel-border" href="#panel12" data-id="12"></use></g></g></svg>
+				<svg
+				    class="mobile" viewBox="0 0 275 400">
+								<defs>
+												<filter id="blur">
+																<feGaussianBlur in="SourceGraphic" stdDeviation="4" result="blur"></feGaussianBlur>
+												</filter>
+												<filter id="noise">
+																<feTurbulence type="fractalNoise" baseFrequency="1.75" result="noisy"></feTurbulence>
+																<feBlend in="SourceGraphic" in2="noisy" mode="multiply" result="blend"></feBlend>
+																<feBlend in="blend" in2="noisy" mode="multiply" result="blend2"></feBlend>
+																<feBlend in="blend2" in2="noisy" mode="multiply"></feBlend>
+												</filter>
+												<filter id="sketchy">
+																<feTurbulence type="fractalNoise" baseFrequency="0.05" numOctaves="3" result="texture"></feTurbulence>
+																<feDisplacementMap in="SourceGraphic" in2="texture" scale="4" result="displacement"></feDisplacementMap>
+												</filter>
+												<mask id="panelMask" maskUnits="userSpaceOnUse">
+																<g></g>
+																<g></g>
+												</mask>
+								</defs>
+								<use id="entity4" data-id="4" data-type="SymbolicLinkEntity" class="" href="#entity2" transform="translate(
+			0,
+			0
+		)"></use>
+								<use id="entity9" data-id="9" data-type="SymbolicLinkEntity" class="" href="#entity5" transform="translate(
+			-262.5,
+			112.5
+		)"></use>
+								<use id="entity10" data-id="10" data-type="SymbolicLinkEntity" class="" href="#entity6" transform="translate(
+			-262.5,
+			112.5
+		)"></use>
+								<g transform="translate(12.5, 237.5)" id="entity11" data-id="11" data-type="Panel" class="">
+												<defs>
+																<rect id="panel11" width="250" height="150"></rect>
+																<clipPath id="panelClip11">
+																				<use href="#panel11"></use>
+																</clipPath>
+												</defs>
+												<g clip-path="url(#panelClip11)">
+																<use class="panel" href="#panel11" data-id="11"></use>
+																<g class="content">
+																				<use id="entity15" data-id="15" data-type="SymbolicLinkEntity" class="" href="#entity13" transform="translate(
+			-71.5,
+			-0.5
+		)"></use>
+																				<use id="entity16" data-id="16" data-type="SymbolicLinkEntity" class="selected" href="#entity14" transform="translate(
+			-180.5,
+			-2.5
+		)"></use>
+																</g>
+																<use class="panel-border" href="#panel11" data-id="11"></use>
+												</g>
+								</g>
+								</svg>
+								<script src="js/_util.js"></script>
+								<script src="js/_init.js"></script>
+</body>
+
+</html>

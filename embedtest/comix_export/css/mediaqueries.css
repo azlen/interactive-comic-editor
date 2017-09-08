@@ -1,0 +1,11 @@
+svg{
+	position: absolute;
+	top: 0; left: 0;
+	width: 100% !important;
+	height: 100% !important;
+}
+.desktop{ left: -1000000%; }	
+@media only screen and (orientation: landscape) {
+	.desktop{ left: 0; }
+	.mobile{ left: -1000000%; }
+}

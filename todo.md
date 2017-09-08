@@ -11,7 +11,7 @@ DEADLINE: Sept. 10th
     [ ] Character scaling
     [-] Mouth + eyebrows?
     [ ] Rotate images
-    [X] Export
+    [X] ~~Export~~
     [X] Artboards
     [X] Linking Entities
 [ ] 
@@ -55,6 +55,9 @@ DEADLINE: Sept. 30th
 [X] ~~Saving Symbolic Link Entities~~
 [X] ~~Export contents of ArtBoards~~
 [?] Modify export for symbolic link entities
+[ ] Update handle offset based of entity's transformation matrix?...
+[X] ~~Figure out what we're going to do with pages~~
+[ ] Figure out how switching between desktop & mobile will work with iFrame?
 
 ## Bugs
 
@@ -62,8 +65,8 @@ DEADLINE: Sept. 30th
     [ ] handles still need to snap, just not when their parents are being dragged
 [ ] Fix Entities not toggling back in Panel on undo/redo
 [ ] Pull copy/paste out of panel
-[ ] Fix update scale on ImportEntity
-[ ] Fix handle positioning when moved in and out of container
+[X] ~~Fix update scale on ImportEntity~~
+[x] ~~Fix handle positioning when moved in and out of container~~
 [ ] Save textEntity merge
 
 ## Entities
@@ -76,22 +79,22 @@ DEADLINE: Sept. 30th
 [-] if masked by multiple panels, highlight panels when entity selected
 
 [-] Allow any entity to subtract from panels
-    [X] dialate filter
+    [X] ~~dialate filter~~
     [-] fix border mod?
 
 ## TextEntity
 [?] TextEntity Height based off `<p>`?
-[X] Text-centering for TextEntity
+[X] ~~Text-centering for TextEntity~~
 [-] Use table-cell for centering
 [ ] Some sort of Markdown format for TextEntity
 [-] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
 [-] Add new shapes / shape modifications for speech bubbles
-    [X] no shape!
+    [X] ~~no shape!~~
 [X] Tail type select box
     [ ] Option to convert tail to connector (tail type?)
 [ ] Tail curving
-[X] Join two speech bubbles
-[X] separate TextEntity into seperate classes
+[X] ~~Join two speech bubbles~~
+[X] ~~separate TextEntity into seperate classes~~
 
 
 ## Character

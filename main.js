@@ -1977,7 +1977,7 @@ class TextEntityBubble extends Visual {
 	}
 
 	_updateText(text) {
-		this.text.textContent = text;
+		this.text.innerHTML = text;
 	}
 
 	_updatePos() { /*++++*/

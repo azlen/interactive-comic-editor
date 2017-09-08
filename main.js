@@ -242,6 +242,16 @@ let viewBox = {
 let inspector = document.querySelector('.inspector .content');
 let layers = document.querySelector('.layers .content');
 
+let beautifyOptionsHTML = {
+	'indent_char': '\t',
+	'preserve_newlines': false,
+}
+
+let beautifyOptionsJS = {
+	'indent_with_tabs': true,
+	'preserve_newlines': false,
+}
+
 /* --------------------================-------------------- */
 /*                        Functions                         */
 /* --------------------================-------------------- */
@@ -446,6 +456,7 @@ function exportAll() {
 				.then(exportJS)
 				.then(exportImages)
 				.then(exportHTML)
+				.then(exportEmbedHTML)
 				.then(function() {
 					zip.generateAsync({type:"blob"}).then(function(content) {
 						saveAs(content, "COMIX_EXPORT.zip");
@@ -485,14 +496,17 @@ function exportImages(zip) {
 }
 
 function exportHTML(zip) {
-	let headElement, svgElement;
+	let styleElement, svgElement;
 	let htmlElement = h('html', [
-		headElement = h('head'),
+		h('head', [
+			h('link', { rel: 'stylesheet', type: 'text/css', href: 'css/font.css' }),
+			h('link', { rel: 'stylesheet', type: 'text/css', href: 'css/mediaqueries.css'}),
+		 	styleElement = h('style')
+		]),
 		h('body', [
 			artboards.map(function(artboard) {
 				let svgElement = svg(`svg.${artboard.options.type.value}`, {
-					width: artboard.options.width.value,
-					height: artboard.options.height.value
+					viewBox: `0 0 ${artboard.options.width.value} ${artboard.options.height.value}`,
 				});
 				svgElement.innerHTML = defs.outerHTML + artboard.content.element.innerHTML;
 				return svgElement;
@@ -501,7 +515,7 @@ function exportHTML(zip) {
 			h('script', {src: 'js/_init.js'}),
 		])
 	]);
-	headElement.innerHTML = document.head.innerHTML;
+	styleElement.innerHTML = document.head.querySelector('style').innerHTML;
 	// svgElement.innerHTML = defs.outerHTML + render.outerHTML;
 	
 	let images = [].slice.call(htmlElement.querySelectorAll('image'));
@@ -512,8 +526,27 @@ function exportHTML(zip) {
 		images[i].setAttribute('href', 'images/' + name);
 	}
 
-	zip.file('index.html', htmlElement.outerHTML)
+	zip.file('index.html', html_beautify(htmlElement.outerHTML, beautifyOptionsHTML));
 
+	return zip;
+}
+
+function exportEmbedHTML(zip) {
+	let dw = artboards[0].options.width.value; let dh = artboards[0].options.height.value; // desktop width & height
+	let mw = artboards[1].options.width.value; let mh = artboards[1].options.height.value; // mobile width & height
+	let _id = `x${new Date() * 1}`;
+	zip.file('embed.html', html_beautify(`
+		<div id="${_id}-wrapper">
+			<style>
+				#${_id}-wrapper { position: relative; height: 0; padding-bottom: ${mh / mw * 100}%; /* mobile */ }
+				#${_id} { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+				@media only screen and (orientation: landscape) {
+					#${_id}-wrapper { padding-bottom: ${dh / dw * 100}%; /* desktop */ };
+				}
+			</style>
+			<iframe src="./index.html" id="${_id}" frameborder="0" cellspacing="0" scrolling="no" seamless='seamless'></iframe>
+		</div>
+	`, beautifyOptionsHTML))
 	return zip;
 }
 
@@ -646,10 +679,7 @@ function exportJS(zip) {
 		${_entityCode.join('')}
 	`
 
-	jsFolder.file('_init.js', js_beautify(finalCode, {
-		"indent_with_tabs": true,
-		"preserve_newlines": false,
-	}));
+	jsFolder.file('_init.js', js_beautify(finalCode, beautifyOptionsJS));
 
 	return zip;
 }

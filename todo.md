@@ -12,8 +12,8 @@ DEADLINE: Sept. 10th
     [-] Mouth + eyebrows?
     [ ] Rotate images
     [X] ~~Export~~
-    [X] Artboards
-    [X] Linking Entities
+    [X] ~~Artboards~~
+    [X] ~~Linking Entities~~
 [ ] 
 
 DEADLINE: Sept. 15th

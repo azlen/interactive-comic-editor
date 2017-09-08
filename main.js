@@ -583,6 +583,10 @@ function exportJS(zip) {
 	function addClassVars(entity, parent, crumb) {
 		crumb = crumb || '';
 
+		if(entity.options && (!entity.options.interactive || !entity.options.interactive.value)) {
+			return;
+		}
+
 		let c = _classes[entity.constructor.name];
 		// if(!c.init) {
 		c.init = [];
@@ -590,7 +594,7 @@ function exportJS(zip) {
 		c.isEntityType = true;
 
 		if(crumb === '') {
-			crumb = `v${_id++}`;
+			crumb = entity.options.name.value;
 			_entityCode.push(`
 				let ${crumb} = new ${entity.constructor.name}();
 			`);
@@ -697,13 +701,16 @@ UI._Element = class { // UI element base class
 		// show this UI element when other UI element is equal to a certain value
 		value = value || true; // default value: true (e.g., bool UI elements)
 		// Apply callback to other UI element to check its value onchange
-		uiElement.applyCallback(function(newValue) {
+		let toggleFn = function(newValue) {
 			if(newValue === value) { // if value is present, show this UI element
 				this.inspector_element.classList.remove('hidden');
 			} else { // if value is NOT present, hide this UI element
 				this.inspector_element.classList.add('hidden')
 			};
-		}.bind(this));
+		}.bind(this);
+
+		uiElement.applyCallback(toggleFn);
+		toggleFn(uiElement.value);
 	}
 
 	// add (one or multiple) callback(s) to trigger when value changes for this UI element
@@ -1172,6 +1179,11 @@ class Entity {
 
 		this._initPos();
 
+		/*~~~*/ this.addOption(new UI.Bool('interactive', false));
+
+		/*~~~*/ this.addOption(new UI.Input('name', `e${this.id}`));
+		/*~~~*/ this.options.name.toggleWith(this.options.interactive);
+
 		this._beforeRender.apply(this, arguments);
 		this._render();
 		this._afterRender.apply(this, arguments);
@@ -1193,6 +1205,11 @@ class Entity {
 		this.options[option.name] = option;
 		/*~~~*/ updateUI();
 		return option;
+	}
+
+	removeOption(name) {
+		delete this.options[name];
+		updateUI();
 	}
 
 	addHandle(handle, snapOnShift) { /*++++*/
@@ -1303,6 +1320,9 @@ class Entity {
 class ArtBoard extends Entity {
 	_beforeRender() { /*++++*/
 		this.content = new ContainerEntity(this);
+
+		/*~~~*/ this.removeOption('interactive');
+		/*~~~*/ this.removeOption('name');
 
 		this._initOptions();
 	}
@@ -2163,6 +2183,9 @@ class ImportEntity extends Entity {
 class SymbolicLinkEntity extends Entity {
 	_afterRender(entity) { /*++++*/
 		if(entity) this.linkEntity(entity);
+
+		/*~~~*/ this.removeOption('interactive');
+		/*~~~*/ this.removeOption('name');
 	}
 
 	linkEntity(entity) { /*++++*/

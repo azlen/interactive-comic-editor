@@ -311,6 +311,7 @@ function save() {
 
 function saveToFileSystem() {
 	download(JSON.stringify(getSaveObject()), `COMIX_${new Date() * 1}.json`);
+	return;
 }
 
 function download(text, filename) {
@@ -427,6 +428,7 @@ function cut() {
 
 function copy() {
 	clipBoard = getSavedEntityObject(selected);
+	return;
 }
 
 function paste() {
@@ -506,6 +508,9 @@ function exportHTML(zip) {
 		h('body', [
 			artboards.map(function(artboard) {
 				let svgElement = svg(`svg.${artboard.options.type.value}`, {
+					xmlns: 'http://www.w3.org/2000/svg',
+					version: '1.1',
+					'xmlns:xlink': 'http://www.w3.org/1999/xlink',
 					viewBox: `0 0 ${artboard.options.width.value} ${artboard.options.height.value}`,
 				});
 				svgElement.innerHTML = defs.outerHTML + artboard.content.element.innerHTML;
@@ -525,6 +530,11 @@ function exportHTML(zip) {
 
 		images[i].setAttribute('href', 'images/' + name);
 	}
+
+	let useHrefs = [].slice.call(htmlElement.querySelectorAll('use[href]'));
+	useHrefs.forEach(function(useElement) {
+		useElement.setAttribute('xlink:href', useElement.getAttribute('href'));
+	})
 
 	zip.file('index.html', html_beautify(htmlElement.outerHTML, beautifyOptionsHTML));
 

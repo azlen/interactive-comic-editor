@@ -207,8 +207,10 @@ let paper = svg('svg.paper', [
 			svg('feBlend', { in: 'blend2', in2: 'noisy', mode: 'multiply' }),
 		]),
 		svg('filter #sketchy', [
-			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 0.05, numOctaves: 3, result: 'texture' }),
-			svg('feDisplacementMap', { in: 'SourceGraphic', in2: 'texture', scale: 4, result: 'displacement' }),
+			svg('feTurbulence', { type: 'fractalNoise', baseFrequency: 0.01, numOctaves: 1, result: 'texture' }),
+			svg('feDisplacementMap', { in: 'SourceGraphic', in2: 'texture', scale: 6, result: 'displacement', xChannelSelector:"R", yChannelSelector:"G" }),
+			//svg('feDisplacementMap', { in: 'SourceGraphic', in2: 'texture', scale: 7, result: 'displacement2', xChannelSelector:"R", yChannelSelector:"G" }),
+			// svg('feBlend', { in: 'displacement', in2: 'displacement2', mode: 'darken' })
 		]),
 		/*svg('filter #dilate-subtract', [
 			svg('feFlood', { floodColor: 'black', result: 'floodBlack' }),
@@ -579,7 +581,7 @@ function exportJS(zip) {
 			let input = _CLASS.toString();
 			let callbackRegex = /([^\t]+)\.applyCallback\(this\.([^;\n]+)\.bind\((.*)\)\)/g; // match instances of calling .applyCallback()
 			let plusRegex = /((?:(?:set|get) )?\w*)\(.*\)\s*\{?\s*\/\*\++\*\/|\/\*\++\*\/\s*((?:(?:set|get) )?\w*)/g;
-			let optionRegex = /(this.*addOption)\(.*\((['"]\w+['"])[\s\S]*;/g
+			let optionRegex = /(this.*addOption)\(.*\((['"]\w+['"])[\s\S]*?;/g
 
 			function addClassFunction(name) {
 				// if(name === 'constructor') {
@@ -655,7 +657,18 @@ function exportJS(zip) {
 							${crumb}${crumb2}.${variableName} = $("#${v.getAttribute('id')}");
 						`);
 					} else if(v.constructor === Handle) {
-						
+						_entityCode.push(`
+							${crumb}${crumb2}.${variableName}.setPosition(${v.x}, ${v.y});
+						`)
+					} else if(Object.values(UI).indexOf(v) !== -1) {
+						if(['interactive', 'name'].indexOf(variableName) === -1) {
+							let value = v.value;
+							if(value.constructor === String) value = `'${value}'`;
+
+							_entityCode.push(`
+								${crumb}${crumb2}.${variableName}.value = ${value};
+							`)
+						}
 					} else if(subEntityTypes.hasOwnProperty(v.constructor.name) && ['currentContainer', 'conjoinedTo', 'parentElement'].indexOf(variableName) === -1) {
 						if(v !== parent) {
 							addClassVars(v, entity, `${crumb}${crumb2}.${variableName}`);
@@ -684,12 +697,14 @@ function exportJS(zip) {
 
 	}).join('\n\n').replace(/.*\/\*~+\*\/.*/g, ''); // |\/\*\++\*\/
 	
-	let finalCode = `
+	let finalCode = js_beautify(`
 		${generatedClasses}
 		${_entityCode.join('')}
-	`
+	`, beautifyOptionsJS);
 
-	jsFolder.file('_init.js', js_beautify(finalCode, beautifyOptionsJS));
+	console.log(finalCode);
+
+	jsFolder.file('_init.js', finalCode);
 
 	return zip;
 }
@@ -858,9 +873,33 @@ UI.File = class extends UI._Element { // file input
 			this.button = h('button', 'choose file'),
 			this.input = h('input.hidden', { type: 'file' }),
 		]);
-		this.button.addEventListener('click', function() {
-			this.input.click();
-		}.bind(this))
+		this.button.addEventListener('click', this.input.click);
+		this.input.addEventListener('change', this._changed.bind(this));
+	}
+}
+
+UI.FileList = class extends UI._Element {
+	_html2value() {
+		this.input.files.forEach(function(file) {
+			if(this.value) this.value.push(file.name);
+			else this.value = [file.name];
+		});
+	}
+	_value2html() {
+		this.files.innerHTML = '';
+		if(this.value) {
+			this.value.forEach(function(filename) {
+				this.files.appendChild(h('li', filename))
+			});
+		}
+	}
+	_render() {
+		this.element = h('span', [
+			this.files = h('ul', { style: { 'font-weight': 400 } } ),
+			this.button = h('button', 'choose file(s)'),
+			this.input = h('input.hidden', { type: 'file' }),
+		]);
+		this.button.addEventListener('click', this.input.click);
 		this.input.addEventListener('change', this._changed.bind(this));
 	}
 }
@@ -1081,9 +1120,10 @@ class Handle {
 		this.y = newPos.y;
 
 		// there are some cases in which we don't want to update callbacks when we update position
-		if(doActivateCallbacks) {
+		// when exported, we always want callbacks right? anyway it doesn't matter
+		/*~~~*/ if(doActivateCallbacks) {
 			this.activateCallbacks();
-		}
+		/*~~~*/ }
 
 		// apply transformations so that we can see changes
 		/*~~~*/ this.applyTransformations();
@@ -1343,9 +1383,12 @@ class Entity {
 		// this.maskElement.parentElement.appendChild(this.maskElement);
 	}
 
-	_beforeRender() { /*++++*/ }
-	_afterRender() { /*++++*/ }
-	_render() { /*++++*/ }
+	_beforeRender() { /*++++*/
+	}
+	_afterRender() { /*++++*/ 
+	}
+	_render() { /*++++*/ 
+	}
 
 	destroy() { /*++++*/
 		if(this.ondestroy) {

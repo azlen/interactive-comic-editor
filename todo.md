@@ -86,11 +86,11 @@ DEADLINE: Sept. 30th
 [?] TextEntity Height based off `<p>`?
 [X] ~~Text-centering for TextEntity~~
 [-] Use table-cell for centering
-[ ] Some sort of Markdown format for TextEntity
+[X] ~~Some sort of Markdown HTML format for TextEntity (edit: HTML)~~
 [-] Figure out textwrapping for circular shaped boxes? or just no circles, or just put rect within circle (probably best option)
 [-] Add new shapes / shape modifications for speech bubbles
     [X] ~~no shape!~~
-[X] Tail type select box
+[X] ~~Tail type select box~~
     [ ] Option to convert tail to connector (tail type?)
 [ ] Tail curving
 [X] ~~Join two speech bubbles~~
